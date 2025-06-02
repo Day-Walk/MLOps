@@ -1,7 +1,7 @@
 # 📖 MLOps Repo
 
 ### 🗂️ Github Branch 관리
-{BD53A743-450D-4A43-8D1A-BF87268496C3}.png
+![{2E3306BC-E5FF-416C-92AE-4312406B2382}](https://github.com/user-attachments/assets/48cd915e-3649-4acc-9d47-3e590e2e87e8)
 
 ### 🕹️ Github Issues, Pull requests
 프로젝트의 Task 관리
