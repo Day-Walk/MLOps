@@ -86,7 +86,6 @@ outputs/
 
 # Jupyter Notebook
 .ipynb_checkpoints/
-*.ipynb
 
 # 데이터 디렉토리 (대용량 데이터)
 data/raw/
