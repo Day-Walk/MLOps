@@ -1,5 +1,10 @@
 # 📖 MLOps Repo
 
+### 🗂️ Github Branch 관리
+{BD53A743-450D-4A43-8D1A-BF87268496C3}.png
+
+### 🕹️ Github Issues, Pull requests
+프로젝트의 Task 관리
 
 # 🧩 Git Convention
 | 커밋 유형 | 의미                     |
@@ -17,7 +22,7 @@
 
 ### ‼️ 하나의 Commit 에는 한 가지 문제만!
 1. 추적 가능하게 유지해주기
-2. 너무 많은 문제를 한 Commit에 담으면 추적하기 어려
+2. 너무 많은 문제를 한 Commit에 담으면 추적하기 어려움
 
 # 💻 Code Convention
 
