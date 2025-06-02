@@ -1,0 +1,9 @@
+name: mlops
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - fastapi
+  - uvicorn
+  # 기타 필요 패키지
