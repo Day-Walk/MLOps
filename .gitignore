@@ -1,8 +1,128 @@
-# .env
+# 환경 설정 파일
 .env
+.env.local
+.env.production
+.env.staging
+.env.development
+*.env
 
+# Python 관련
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 가상환경
+venv/
+ENV/
+env/
+.venv/
+.ENV/
+.env/
+
+# IDE 및 에디터
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 데이터 파일들
 *.csv
+*.json
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.parquet
+*.xlsx
+*.xls
+*.sqlite
+*.db
 
-__pycache__
+# 머신러닝 모델 파일들
+*.model
+*.joblib
+*.pt
+*.pth
+*.ckpt
+*.pb
+*.tflite
+*.onnx
+models/
+checkpoints/
+saved_models/
 
-*.pyc
+# 로그 파일들
+*.log
+logs/
+log/
+
+# 실험 추적 (MLflow, Weights & Biases 등)
+mlruns/
+wandb/
+.mlflow/
+outputs/
+.hydra/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# 데이터 디렉토리 (대용량 데이터)
+data/raw/
+data/processed/
+data/external/
+datasets/
+
+# Docker 관련
+.dockerignore
+
+# 압축 파일
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# 임시 파일
+tmp/
+temp/
+.tmp/
+.temp/
+
+# 시스템 파일
+.DS_Store
+Thumbs.db
+
+# Elasticsearch 데이터 (ELK 스택)
+esdata/
+elasticsearch-data/
+
+# 기타 캐시
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 설정 백업
+*.bak
+*.backup
