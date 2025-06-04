@@ -9,7 +9,7 @@ docker network create mlops-network 2>/dev/null || echo "네트워크가 이미 
 
 # 2. ELK 서버 시작
 echo "2. ELK 서버 시작..."
-cd ./ELK/
+cd ELK/
 docker-compose up -d
 
 # ELK 서버 준비 대기
