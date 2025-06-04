@@ -53,6 +53,19 @@ services:
     networks:
       - mlops-network
 
+  elk-api:
+    build: .
+    container_name: elk-api
+    ports:
+      - "9201:9201"
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - mlops-network
+
 volumes:
   es-plugins:
 
