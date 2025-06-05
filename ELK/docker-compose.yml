@@ -1,7 +1,7 @@
 version: '3.9'
 services:
   elasticsearch-init:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION}
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
     container_name: elasticsearch-init
     user: "0"
     command: >
@@ -12,9 +12,11 @@ services:
       "
     volumes:
       - es-plugins:/usr/share/elasticsearch/plugins
+    networks:
+      - database
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION}
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
@@ -23,7 +25,7 @@ services:
       - xpack.security.http.ssl.enabled=false
       - xpack.security.transport.ssl.enabled=false
       - xpack.license.self_generated.type=trial
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
     ulimits:
       memlock:
         soft: -1
@@ -32,26 +34,26 @@ services:
       - ./esdata:/usr/share/elasticsearch/data
       - es-plugins:/usr/share/elasticsearch/plugins
     ports:
-      - ${ES_PORT}:9200
-    networks:
-      - mlops-network
+      - 9200:9200
     depends_on:
       elasticsearch-init:
         condition: service_completed_successfully
+    networks:
+      - database
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:${KIBANA_VERSION}
+    image: docker.elastic.co/kibana/kibana:8.15.0
     container_name: kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - xpack.security.enabled=false
       - xpack.encryptedSavedObjects.encryptionKey=a7a6311933d3503b89bc2dbc36572c33a6c10925682e591bffcab6911c06786d
     ports:
-      - ${KIBANA_PORT}:5601
+      - 5601:5601
     depends_on:
       - elasticsearch
     networks:
-      - mlops-network
+      - database
 
   elk-api:
     build: .
@@ -64,12 +66,11 @@ services:
     depends_on:
       - elasticsearch
     networks:
-      - mlops-network
+      - database
 
 volumes:
   es-plugins:
 
 networks:
-  mlops-network:
+  database:
     driver: bridge
-    external: true
