@@ -28,12 +28,20 @@ class ElasticsearchService:
             },
             "sort": [{"_score": {"order": "desc"}}],
             "size": max_results,
-            "_source": "place_id"
+            "_source": ["place_id", "name", "category", "sub_category"]
         }
         
         response = self.es.search(index=self.index_name, body=search_body)
         
         hits = response['hits']['hits']
-        places = [hit['_source']['place_id'] for hit in hits]
+        places = [
+            {
+                'place_id': hit['_source']['place_id'],
+                'name': hit['_source']['name'], 
+                'category': hit['_source']['category'],
+                'sub_category': hit['_source']['sub_category']
+            }
+            for hit in hits
+        ]
         
         return places
