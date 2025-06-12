@@ -1,4 +1,5 @@
-version: '3.9'
+# MLOps/docker-compose.yml - version 라인 제거
+# version: '3.9'  # 이 라인 삭제
 
 services:
   mlops-backend:
@@ -9,12 +10,15 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - ENV=production
-      - ELASTICSEARCH_HOST=http://elasticsearch:9200  # ELK 서버 주소
+      - ELASTICSEARCH_HOST=http://elk-api:9201  # ELK API 포트로 수정
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app
+      - ./app:/app/app  # 볼륨 매핑 수정
     restart: unless-stopped
-    # Filebeat는 필요시 별도 추가
+    networks:
+      - mlops-network
 
-# 네트워크는 별도로 지정하지 않아도 단일 서버 내에서는 bridge 사용
+networks:
+  mlops-network:
+    external: true

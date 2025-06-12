@@ -1,13 +1,20 @@
+# MLOps/Dockerfile
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# requirements 파일 복사 및 설치
+# requirements.txt 복사 및 설치
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 애플리케이션 코드 복사
-COPY . .
+# app 디렉토리만 복사 (중요!)
+COPY ./app ./app
 
-# uvicorn으로 FastAPI 실행
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Python 경로 설정
+ENV PYTHONPATH=/app
+
+# 포트 노출
+EXPOSE 8000
+
+# uvicorn 실행
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
