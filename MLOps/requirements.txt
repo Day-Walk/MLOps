@@ -1,23 +1,26 @@
+# Terminal Command
+# pip install -r requirements.txt --no-deps
+
 # API
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
+fastapi==0.115,<1
+uvicorn[standard]>=0.23,<1
+pydantic>=2.5,<3
 
 # Data
-requests==2.31.0
-pandas==2.0.3
-numpy==1.26.4
-chromadb==0.4.22
+requests>=2.31,<3
+pandas>=1.5,<3
+numpy>=1.24,<3
+chromadb>=0.4,<1
 
 # Model
-torch==2.0.1
-scikit-learn==1.3.0
-deepctr-torch==0.2.9
+scikit-learn>=1.3,<2
+torch>=1.12,<3
+deepctr-torch>=0.1.1,<1
 
-langchain-community
-langchain-core
-langchain-openai
-sentence-transformers
+langchain-community>=0.1,<1
+langchain-core>=0.1,<1
+langchain-openai>=0.1,<1
+sentence-transformers>=2.2,<3
 
 # Utils
-tqdm
+tqdm>=4,<5
