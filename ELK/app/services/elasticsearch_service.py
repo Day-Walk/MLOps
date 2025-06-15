@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 class ElasticsearchService:
     """Elasticsearch 서비스"""
     
-    def __init__(self, host: str = "54.180.24.146", port: int = 9200):
+    def __init__(self, host: str = "elasticsearch", port: int = 9200):
         self.es = Elasticsearch([{'host': host, 'port': port, 'scheme': 'http'}])
         self.index_name = "place_data_v3"
 
@@ -15,7 +15,7 @@ class ElasticsearchService:
         except:
             return False
 
-    async def search_places(self, query: str, max_results: int = 23) -> List[str]:
+    def search_places(self, query: str, max_results: int = 23) -> List[str]:
         """장소 검색"""
         search_body = {
             "query": {
