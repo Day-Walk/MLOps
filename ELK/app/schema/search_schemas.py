@@ -2,10 +2,10 @@ from pydantic import BaseModel
 from typing import List
 
 class Place(BaseModel):
-    place_id: str
+    uuid: str
     name: str
     category: str
-    sub_category: str
+    subcategory: str
 
 class SearchResponse(BaseModel):
     """검색 결과 응답 스키마"""
