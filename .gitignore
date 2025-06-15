@@ -58,6 +58,7 @@ env/
 *.xls
 *.sqlite
 *.db
+*.shp
 
 # 머신러닝 모델 파일들
 *.model

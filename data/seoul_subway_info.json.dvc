@@ -1,0 +1,5 @@
+outs:
+- md5: 10dd267134bd69856d315d8d5145cc3d
+  size: 91478
+  hash: md5
+  path: seoul_subway_info.json

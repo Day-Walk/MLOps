@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class KoreanContentElasticsearch:    
-    def __init__(self, host: str = "localhost", port: int = 9200):
+    def __init__(self, host: str = "15.164.50.188", port: int = 9200):
         """
         Elasticsearch 클라이언트 초기화
         
@@ -107,7 +107,7 @@ class KoreanContentElasticsearch:
             
             # 필드 매핑 정의
             field_mappings = {
-                "HEX(id)": {
+                "uuid": {
                     "type": "keyword"
                 },
                 "name": {
@@ -219,7 +219,7 @@ class KoreanContentElasticsearch:
             print(f"읽어온 데이터 개수: {len(data)}")
             
             # 필수 필드 확인
-            required_fields = ["HEX(id)", "name", "category", "sub_category", "address", "content"]
+            required_fields = ["uuid", "name", "category", "subcategory", "address", "content"]
             processed_data = []
             
             for i, doc in enumerate(data):
@@ -299,8 +299,8 @@ class KoreanContentElasticsearch:
                     logger.warning(f"추가로 {len(errors)-3}개의 에러가 더 있습니다.")
                     print(f"추가로 {len(errors)-3}개의 에러가 더 있습니다.")
         except FileNotFoundError:
-            logger.error(f"파일을 찾을 수 없습니다: {json_file_path}")
-            print(f"오류: 파일을 찾을 수 없습니다 - {json_file_path}")
+            logger.error(f"파일을 찾을 수 없습니다: {csv_file_path}")
+            print(f"오류: 파일을 찾을 수 없습니다 - {csv_file_path}")
             return False
         except json.JSONDecodeError as e:
             logger.error(f"JSON 파싱 오류: {e}")
