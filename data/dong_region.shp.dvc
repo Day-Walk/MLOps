@@ -1,0 +1,5 @@
+outs:
+- md5: 67c87905d251a78b6d777b8e63be064e
+  size: 140098988
+  hash: md5
+  path: dong_region.shp
