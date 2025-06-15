@@ -1,4 +1,4 @@
 [core]
     remote = storage
 ['remote "storage"']
-    url = s3://mybucket/team04-dvc
+    url = s3://team04-dvc
