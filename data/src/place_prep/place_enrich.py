@@ -63,19 +63,19 @@ def add_dong_info(place_json, dong_region):
 
 def main():
     # 장소, 지하철, 행정구역 데이터 불러오기
-    with open("/place_vectordb.json", 'r', encoding='utf-8') as f:
+    with open("data/PLACES_DATA_V4_2_20250613.json", 'r', encoding='utf-8') as f:
         place_json = json.load(f)
 
-    with open("/seoul_subway_info.json", 'r', encoding='utf-8') as f:
+    with open("data/seoul_subway_info.json", 'r', encoding='utf-8') as f:
         subway_json = json.load(f)
 
-    dong_region = gpd.read_file("/dong_region.shp")
+    dong_region = gpd.read_file("data/dong_region.shp")
 
     place_json = add_subway_info(place_json, subway_json)
     place_json = add_dong_info(place_json, dong_region)
     
     # json 파일로 저장
-    with open("place_metadata_enrich.json", "w", encoding="utf-8") as f:
+    with open("data/PLACES_TO_VDB_V4_2_20250613.json", "w", encoding="utf-8") as f:
         json.dump(place_json, f, ensure_ascii=False)
 
 
