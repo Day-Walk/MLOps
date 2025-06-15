@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
-from schema.search_schemas import SearchResponse
-from services.elasticsearch_service import ElasticsearchService
+from app.schema.search_schemas import SearchResponse
+from app.services.elasticsearch_service import ElasticsearchService
 
 app = FastAPI(title="ELK Search API", version="1.0.0")
 
