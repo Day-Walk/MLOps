@@ -39,7 +39,7 @@ class ElasticsearchService:
                 'uuid': hit['_source']['uuid'],
                 'name': hit['_source']['name'], 
                 'category': hit['_source']['category'],
-                'sub_category': hit['_source']['subcategory']
+                'subcategory': hit['_source']['subcategory']
             }
             for hit in hits
         ]
