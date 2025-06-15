@@ -4,7 +4,7 @@ from utils.es_place_upload import KoreanContentElasticsearch
 if __name__ == "__main__":
     # 한국어 콘텐츠 Elasticsearch 클라이언트 초기화
     print("한국어 콘텐츠 Elasticsearch 클라이언트 초기화 중...")
-    korean_es = KoreanContentElasticsearch(host="localhost", port=9200)
+    korean_es = KoreanContentElasticsearch(host="15.164.50.188", port=9200)
     
     # 인덱스 생성
     print("\n=== 한국어 콘텐츠 인덱스 생성 ===")
@@ -14,8 +14,8 @@ if __name__ == "__main__":
     if success:
         print(f"인덱스 '{index_name}' 생성 성공")
         
-        # json 파일 삽입
-        csv_file_path = "data/place.csv"
+        # CSV 파일 삽입
+        csv_file_path = "../places_data_extracted.csv"
         korean_es.insert_data_from_csv(index_name, csv_file_path)
         
     else:
