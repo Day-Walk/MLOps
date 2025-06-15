@@ -1,0 +1,6 @@
+outs:
+- md5: a6277ac0c495583dfbeb5cd6e8277439.dir
+  size: 156582997
+  nfiles: 6
+  hash: md5
+  path: chroma_db_bge
