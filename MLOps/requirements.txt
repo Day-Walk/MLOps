@@ -26,3 +26,11 @@ sentence-transformers>=2.2,<3
 
 # Utils
 tqdm>=4,<5
+
+# Preprocessing
+haversine>=2.7,<3
+geopandas>=0.13,<1
+shapely>=2.0,<3
+pyproj>=3.6,<4
+fiona>=1.9,<2
+pyogrio>=0.5,<1
