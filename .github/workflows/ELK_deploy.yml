@@ -18,8 +18,8 @@ jobs:
             - name: Connect To EC2
               uses: appleboy/ssh-action@v1.0.3
               with:
-                  host: ${{ secrets.EC2_HOST }}
-                  username: ${{ secrets.EC2_USERNAME }}
+                  host: ${{ secrets.EC2_HOST_DB }}
+                  username: ${{ secrets.EC2_USER }}
                   key: ${{ secrets.EC2_PRIVATE_KEY }}
 
                   script: |
