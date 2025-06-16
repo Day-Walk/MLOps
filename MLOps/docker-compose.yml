@@ -12,7 +12,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app/app
+      - /home/ubuntu/MLOps/app:/app/app
       - /home/ubuntu/MLOps/data:/app/data
     restart: unless-stopped
     networks:
