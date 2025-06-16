@@ -14,7 +14,29 @@ class ReccomendResponse(BaseModel):
         ...,
         description="추천 장소 목록",
         example={
-            "recommend": [{"id": "place_id_1"}, {"id": "place_id_2"}, {"id": "place_id_3"}],
-            "normal": [{"id": "place_id_4"}, {"id": "place_id_5"}]
+            "recommend": [
+                {
+                    "id": "place_id_1",
+                    "category": "관광지",
+                    "subcategory": "자연관광지"
+                },
+                {
+                    "id": "place_id_2", 
+                    "category": "음식점&카페",
+                    "subcategory": "한식"
+                }
+            ],
+            "normal": [
+                {
+                    "id": "place_id_3",
+                    "category": "문화시설",
+                    "subcategory": "박물관"
+                },
+                {
+                    "id": "place_id_4",
+                    "category": "쇼핑",
+                    "subcategory": "전문매장/상가"
+                }
+            ]
         }
     )
