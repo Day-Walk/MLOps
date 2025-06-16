@@ -5,6 +5,7 @@ WORKDIR /app
 
 # requirements.txt 복사 및 설치
 COPY requirements.txt .
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # app 디렉토리만 복사 (중요!)
