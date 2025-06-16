@@ -37,8 +37,10 @@ jobs:
           
           # Docker 컨테이너 재시작 (docker-compose가 있다면)
           if [ -f docker-compose.yml ]; then
-            docker-compose down
-            docker-compose up -d --build
+            docker compose down
+            docker compose rm -f
+            docker rmi $(docker images -q) -f
+            docker compose up -d --build
           fi
           
           echo "Deployment completed successfully!"
