@@ -105,19 +105,27 @@ class ElasticsearchService:
             print(f"로그 삽입 오류: {e}")
             return False
         
-    def search_logs_by_user(self, user_id: str, limit: int = 50) -> List[Dict]:
-        """사용자별 로그 검색"""
+    def search_logs_by_user(self, user_id: str) -> List[Dict]:
+        """사용자별 로그 검색 (최근 7일)"""
         try:
             query = {
                 "query": {
-                    "term": {
-                        "userId": user_id
+                    "bool": {
+                        "filter": [
+                            {"term": {"userId": user_id}},
+                            {
+                                "range": {
+                                    "createAt": {
+                                        "gte": "now-7d/d"
+                                    }
+                                }
+                            }
+                        ]
                     }
                 },
                 "sort": [
                     {"createAt": {"order": "desc"}}
-                ],
-                "size": limit
+                ]
             }
             
             response = self.es.search(index=self.log_index_name, body=query)
