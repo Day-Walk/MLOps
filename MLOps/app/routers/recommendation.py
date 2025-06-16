@@ -12,11 +12,22 @@ elk_client = ELKClient()
 deepctr_service = DeepCTRService()
 
 @router.get("/recommend", response_model=ReccomendResponse)
-async def recommend_places(request: ReccomendRequest):
+async def recommend_places(userid: str, query: str):
     """Place ID 리스트 기반 추천 API"""
     try:
-        top_3_place_ids, other_places = deepctr_service.rank_places_by_ctr(request.userid, request.query)
-        return JSONResponse(content={"places": {"recommend": top_3_place_ids, "normal": other_places}})
+        top_3_place_ids, other_places_data = await deepctr_service.rank_places_by_ctr(userid, query)
+        
+        # 스키마에 맞게 데이터 형식 변환
+        recommend_places = [{"id": place_id} for place_id in top_3_place_ids]
+        normal_places = [{"id": place['place_id']} for place in other_places_data]
+        
+        return ReccomendResponse(
+            success=True,
+            places={
+                "recommend": recommend_places,
+                "normal": normal_places
+            }
+        )
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

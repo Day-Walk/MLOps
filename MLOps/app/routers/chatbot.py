@@ -49,8 +49,8 @@ async def chat_endpoint(
             "type": "sync"
         }
         
-        print(f"📝 채팅 요청: {message} (세션: {session_id})")
-        print(f"🔄 활성 세션 수: {len(active_sessions)}")
+        print(f"채팅 요청: {message} (세션: {session_id})")
+        print(f"활성 세션 수: {len(active_sessions)}")
         
         # OpenAI API 호출
         gpt_response = await openai_service.get_chat_completion(message)
@@ -71,7 +71,7 @@ async def chat_endpoint(
         return JSONResponse(content=response)
         
     except Exception as e:
-        print(f"❌ 채팅 처리 오류: {e}")
+        print(f"채팅 처리 오류: {e}")
         active_sessions.pop(session_id, None)
         traceback.print_exc()
         return JSONResponse(
@@ -86,20 +86,18 @@ async def chat_endpoint(
 @router.get("/chat/stream")
 async def chat_stream_endpoint(
     message: str = Query(..., description="사용자 메시지"),
-    session_id: Optional[str] = Query(None, description="세션 ID")
+    userid: Optional[str] = Query(None, description="사용자 ID")
 ):
-
     """
     정해진 형식 SSE 스트리밍 챗봇 API
     완성된 메시지를 {"str1": "", "placeid": [], "str2": ""} 형식으로 전송
     """
-    session_id = session_id or str(uuid.uuid4())
-    active_sessions[session_id] = {
+    active_sessions[userid] = {
         "start_time": datetime.now(), 
         "type": "structured_stream"
     }
     
-    print(f"🔄 구조화 스트림 요청: {message} (세션: {session_id})")
+    print(f"구조화 스트림 요청: {message} (사용자: {userid})")
     
     async def generate_structured_stream():
         try:
@@ -109,60 +107,35 @@ async def chat_stream_endpoint(
             # 2. 장소 ID 추출
             place_ids = place_extractor.extract_place_ids_from_text(gpt_response)
             
-            # 3. 시작 메시지 (처리 시작 알림)
-            start_message = {
-                "type": "start",
-                "str1": "답변을 준비하고 있습니다...",
-                "placeid": None,
-                "str2": None,
-                "session_id": session_id
-            }
-            yield f"data: {json.dumps(start_message, ensure_ascii=False)}\n\n"
-            
-            # 4. 약간의 지연 (실제 처리 시간 시뮬레이션)
-            await asyncio.sleep(1)
-            
-            # 5. 진행 상황 메시지 (선택사항)
-            progress_message = {
-                "type": "progress", 
-                "str1": "장소 정보를 분석 중입니다...",
-                "placeid": None,
-                "str2": None,
-                "session_id": session_id
-            }
-            yield f"data: {json.dumps(progress_message, ensure_ascii=False)}\n\n"
-            
-            await asyncio.sleep(1)
-            
-            # 6. 최종 완성된 응답 (정해진 형식)
+            # 3. 최종 완성된 응답 (정해진 형식)
             final_message = {
                 "type": "complete",
                 "str1": gpt_response,
                 "placeid": place_ids if place_ids else None,
                 "str2": None,  # 필요시 추가 정보
-                "session_id": session_id,
+                "userid": userid,
                 "timestamp": datetime.now().isoformat()
             }
             yield f"data: {json.dumps(final_message, ensure_ascii=False)}\n\n"
             
-            # 7. 스트림 종료 신호
+            # 4. 스트림 종료 신호
             yield "data: [DONE]\n\n"
             
         except Exception as e:
-            print(f"❌ 구조화 스트림 처리 오류: {e}")
+            print(f"구조화 스트림 처리 오류: {e}")
             error_message = {
                 "type": "error",
                 "str1": f"처리 중 오류가 발생했습니다: {str(e)}",
                 "placeid": None,
                 "str2": None,
-                "session_id": session_id
+                "userid": userid
             }
             yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         
         finally:
             # 세션 정리
-            active_sessions.pop(session_id, None)
+            active_sessions.pop(userid, None)
     
     return StreamingResponse(
         generate_structured_stream(),
@@ -171,7 +144,7 @@ async def chat_stream_endpoint(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": "*",
-            "X-Session-ID": session_id,
+            "X-User-ID": userid,
             "X-Stream-Type": "structured"
         }
     )

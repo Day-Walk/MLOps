@@ -13,7 +13,6 @@ from datetime import datetime
 from app.routers import recommendation, chatbot
 
 # 환경 변수 설정
-# GitHub Actions 환경변수 설정
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 app = FastAPI(

@@ -20,7 +20,7 @@ class ELKClient:
             
             if response.status_code == 200:
                 result = response.json()
-                return result.get("data", [])
+                return result.get("places", [])
             else:
                 return []
                 
