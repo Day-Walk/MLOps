@@ -26,7 +26,7 @@ class DeepCTRService:
         places_df = pd.DataFrame(places_list)
         
         # DataFrame의 컬럼 이름 변경
-        places_df = places_df.rename(columns={'uuid': 'id', 'name': 'place_name'})
+        places_df = places_df.rename(columns={'uuid': 'place_id', 'name': 'place_name'})
         
         # 사용자 정보를 DataFrame의 모든 행에 추가
         if not user_info_df.empty:
@@ -40,7 +40,7 @@ class DeepCTRService:
             places_df['like_list'] = "[1,2,3,4,5]"
         
         # 원본 데이터에서 응답에 필요한 컬럼 보존
-        output_columns = ['id', 'category', 'subcategory']
+        output_columns = ['place_id', 'category', 'subcategory']
         preserved_df = places_df[output_columns]
 
         # 모델 예측
@@ -51,6 +51,9 @@ class DeepCTRService:
         
         # 예측값 기준 정렬
         sorted_df = preserved_df.sort_values(by='ctr', ascending=False)
+        
+        # 'place_id'를 'id'로 다시 변경
+        sorted_df = sorted_df.rename(columns={'place_id': 'id'})
         
         # 상위 3개 장소 반환, 나머지도 반환
         top_places = sorted_df.head(3).to_dict('records')
