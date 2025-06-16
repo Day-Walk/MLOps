@@ -15,16 +15,16 @@ class DeepFMModdelTrain:
     def __init__(self, data_path):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.data = pd.read_csv(data_path)
-        self.sparse_features = ["user_id", "user_name", "age", "gender", "place_id", "place_name","category", "sub_category"]
+        self.sparse_features = ["userid", "name", "age", "gender", "place_id", "place_name","category", "subcategory"]
         self.sequence_feature = "like_list"
         self.linear_feature_columns = None
         self.dnn_feature_columns = None
         self.feature_names = None
         self.model_input = None
         self.target = "yn"        
-        self.model_path = "/home/ubuntu/working/MLOps/MLOps/app/model/deepfm_model.pt"
-        self.encoders_path = "/home/ubuntu/working/MLOps/MLOps/app/model/label_encoders.pkl"
-        self.key2index_path = "/home/ubuntu/working/MLOps/MLOps/app/model/key2index.pkl"
+        self.model_path = "/home/ubuntu/MLOps/MLOps/app/model/deepfm_model.pt"
+        self.encoders_path = "/home/ubuntu/MLOps/MLOps/app/model/label_encoders.pkl"
+        self.key2index_path = "/home/ubuntu/MLOps/MLOps/app/model/key2index.pkl"
         self.model = None
         self.max_len = None
         self.label_encoders = {}
@@ -107,6 +107,24 @@ class DeepFMModdelTrain:
             self.label_encoders = pickle.load(f)
         with open(self.key2index_path, 'rb') as f:
             self.key2index = pickle.load(f)
+
+        # 예측에 필요한 메타데이터 재구성
+        temp_like_list = self.data[self.sequence_feature].apply(ast.literal_eval)
+        self.max_len = max(len(x) for x in temp_like_list)
+
+        sparse_feature_names = ["userid", "name", "age", "gender", "place_id", "place_name", "category", "subcategory"]
+        
+        reconstructed_sparse_features = [SparseFeat(feat, vocabulary_size=len(self.label_encoders[feat].classes_), embedding_dim=4)
+                                         for feat in sparse_feature_names]
+        
+        reconstructed_sequence_feature = [VarLenSparseFeat(SparseFeat(self.sequence_feature,
+                                                                      vocabulary_size=len(self.key2index) + 1,
+                                                                      embedding_dim=4),
+                                                           maxlen=self.max_len, combiner='mean')]
+
+        self.linear_feature_columns = reconstructed_sparse_features + reconstructed_sequence_feature
+        self.dnn_feature_columns = reconstructed_sparse_features + reconstructed_sequence_feature
+        self.feature_names = get_feature_names(self.linear_feature_columns + self.dnn_feature_columns)
         
         # 입력 데이터를 DataFrame으로 변환
         if isinstance(input_data, dict):
@@ -115,13 +133,19 @@ class DeepFMModdelTrain:
             input_df = input_data.copy()
         
         # sparse feature 전처리
-        sparse_feature_names = ["user_id", "user_name", "age", "gender", "place_id", "place_name","category", "sub_category"]
         for feature in sparse_feature_names:
-            input_df[feature] = input_df[feature].fillna("unknown")
-            # 학습 시 보지 못한 값은 'unknown'으로 처리
-            input_df[feature] = input_df[feature].apply(
-                lambda x: x if x in self.label_encoders[feature].classes_ else "unknown"
-            )
+            encoder = self.label_encoders[feature]
+            known_classes = set(encoder.classes_)
+            
+            # 'unknown'이 학습되었는지 확인
+            unknown_in_classes = 'unknown' in known_classes
+            
+            def transform_element(x):
+                if pd.isna(x) or x not in known_classes:
+                    return 'unknown' if unknown_in_classes else encoder.classes_[0]
+                return x
+
+            input_df[feature] = input_df[feature].apply(transform_element)
             input_df[feature] = self.label_encoders[feature].transform(input_df[feature])
         
         # sequence feature 전처리
@@ -153,19 +177,19 @@ class DeepFMModdelTrain:
         return model.predict(model_input)
     
 if __name__ == "__main__":
-    deepfm_train = DeepFMModdelTrain("/home/ubuntu/working/MLOps/data/final_click_log.csv")
+    deepfm_train = DeepFMModdelTrain("../data/final_click_log.csv")
     deepfm_train.preprocess()
     model = deepfm_train.train()
     # 예시 데이터
     input_data = {
-        "user_id": ["0x06fa1ba7a7e44621a2338e6093e53341", "0x6d132cda535848e295b8e489486ea841", "0x0fa0a9c4a283451181b77d91e3229c91"],
-        "user_name": ["딩딩이", "댕댕이 언니", "에구궁"],
+        "userid": ["0x06fa1ba7a7e44621a2338e6093e53341", "0x6d132cda535848e295b8e489486ea841", "0x0fa0a9c4a283451181b77d91e3229c91"],
+        "name": ["딩딩이", "댕댕이 언니", "에구궁"],
         "age": [30, 60, 50],
         "gender": [1, 1, 0],
         "place_id": ["0xeb37b72b1fa54dc6a3867517ac2df6ef", "0x0528fbb073104d51974112a71d72b4e4", "0x1226fc5501194d2eba00383748045c20"],
         "place_name": ["롯데월드 쇼핑몰", "청아라 생선구이", "시골보쌈"],
         "category": ["쇼핑", "음식점&카페", "음식점&카페"],
-        "sub_category": ["전문매장/상가", "한식", "한식"],
+        "subcategory": ["전문매장/상가", "한식", "한식"],
         "like_list": ["[11, 12, 13, 14, 15, 16, 17, 18, 19, 20]", "[26, 22, 29, 44]", "[11, 28, 14, 29, 10, 22, 8, 25, 30]"]
     }
     prediction = deepfm_train.predict(input_data)

@@ -1,0 +1,5 @@
+outs:
+- md5: 84ff00cfc8d347b2740e150b17963df8
+  size: 231416
+  hash: md5
+  path: final_click_log.csv
