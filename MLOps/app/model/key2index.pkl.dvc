@@ -1,0 +1,5 @@
+outs:
+- md5: e0d99915c773ad623fb14d6e60f7b6d4
+  size: 216
+  hash: md5
+  path: key2index.pkl
