@@ -18,17 +18,17 @@ jobs:
     - name: Deploy to EC2
       uses: appleboy/ssh-action@v1.0.0
       env:
-        OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       with:
         host: ${{ secrets.EC2_HOST_ML }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         port: 22
-        envs: OPENAI_KEY
+        envs: OPENAI_API_KEY
         script: |
-          export OPENAI_KEY=$OPENAI_KEY
-          echo "OPENAI_KEY is $OPENAI_KEY"
-          
+          export OPENAI_API_KEY=$OPENAI_API_KEY
+          echo "OPENAI_API_KEY is $OPENAI_API_KEY"
+
           # 프로젝트 디렉터리로 이동
           cd ~/MLOps
           
