@@ -22,9 +22,9 @@ class DeepFMModdelTrain:
         self.feature_names = None
         self.model_input = None
         self.target = "yn"        
-        self.model_path = "./model/deepfm_model.pt"
-        self.encoders_path = "./model/label_encoders.pkl"
-        self.key2index_path = "./model/key2index.pkl"
+        self.model_path = "/app/app/model/deepfm_model.pt"
+        self.encoders_path = "/app/app/model/label_encoders.pkl"
+        self.key2index_path = "/app/app/model/key2index.pkl"
         self.model = None
         self.max_len = None
         self.label_encoders = {}
