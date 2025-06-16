@@ -15,11 +15,17 @@ deepctr_service = DeepCTRService()
 async def recommend_places(userid: str, query: str):
     """Place ID 리스트 기반 추천 API"""
     try:
-        top_3_place_ids, other_places_data = await deepctr_service.rank_places_by_ctr(userid, query)
+        top_places_data, other_places_data = await deepctr_service.rank_places_by_ctr(userid, query)
         
         # 스키마에 맞게 데이터 형식 변환
-        recommend_places = [{"id": place_id} for place_id in top_3_place_ids]
-        normal_places = [{"id": place['place_id']} for place in other_places_data]
+        recommend_places = [
+            {"id": p.get("id"), "category": p.get("category"), "subcategory": p.get("subcategory")}
+            for p in top_places_data
+        ]
+        normal_places = [
+            {"id": p.get("id"), "category": p.get("category"), "subcategory": p.get("subcategory")}
+            for p in other_places_data
+        ]
         
         return ReccomendResponse(
             success=True,

@@ -26,7 +26,7 @@ class DeepCTRService:
         places_df = pd.DataFrame(places_list)
         
         # DataFrame의 컬럼 이름 변경
-        places_df = places_df.rename(columns={'uuid': 'place_id', 'name': 'place_name'})
+        places_df = places_df.rename(columns={'uuid': 'id', 'name': 'place_name'})
         
         # 사용자 정보를 DataFrame의 모든 행에 추가
         if not user_info_df.empty:
@@ -39,19 +39,21 @@ class DeepCTRService:
             places_df['gender'] = 1 # 남성을 기본값으로 가정
             places_df['like_list'] = "[1,2,3,4,5]"
         
-        input_data = places_df
-                
+        # 원본 데이터에서 응답에 필요한 컬럼 보존
+        output_columns = ['id', 'category', 'subcategory']
+        preserved_df = places_df[output_columns]
+
         # 모델 예측
-        predictions = self.model.predict(input_data)
+        predictions = self.model.predict(places_df)
         
-        # input data에 예측값 추가
-        input_data['ctr'] = predictions
+        # 예측 결과를 원본 데이터에 추가
+        preserved_df['ctr'] = predictions
         
         # 예측값 기준 정렬
-        input_data = input_data.sort_values(by='ctr', ascending=False)
+        sorted_df = preserved_df.sort_values(by='ctr', ascending=False)
         
         # 상위 3개 장소 반환, 나머지도 반환
-        top_places = input_data.head(3)['place_id'].tolist()
-        other_places = input_data.iloc[3:].to_dict('records')
+        top_places = sorted_df.head(3).to_dict('records')
+        other_places = sorted_df.iloc[3:].to_dict('records')
         return top_places, other_places
     
