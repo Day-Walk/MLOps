@@ -36,7 +36,11 @@ jobs:
           cd MLOps
           
           # Docker 컨테이너 재시작 (docker-compose가 있다면)
-          docker compose down -v || true
-          docker compose up -d --build
+          if [ -f docker-compose.yml ]; then
+            docker compose down
+            docker compose rm -f
+            docker rmi $(docker images -q) -f
+            docker compose up -d --build
+          fi
           
           echo "Deployment completed successfully!"
