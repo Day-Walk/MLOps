@@ -9,7 +9,7 @@ class DeepCTRService:
     """DeepCTR 모델 서비스"""
     
     def __init__(self):
-        self.model = DeepFMModdelTrain("~/MLOps/data/final_click_log.csv")
+        self.model = DeepFMModdelTrain("/app/data/final_click_log.csv")
         self.elk_client = ELKClient()
         self.user_data_service = UserDataService()
         

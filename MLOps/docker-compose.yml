@@ -12,6 +12,7 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app/app
+      - ./data:/app/data
     restart: unless-stopped
     networks:
       - mlops-network
