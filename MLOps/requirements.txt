@@ -11,8 +11,8 @@ torchaudio==2.7.1+cpu
 tensorflow==2.19.0
 
 # Data Processing and VectorDB
-pandas
-numpy
+pandas==2.3.0
+numpy==1.26.4
 chromadb==0.6.3
 sentence-transformers==2.7.0
 
