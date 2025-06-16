@@ -26,6 +26,9 @@ jobs:
         port: 22
         envs: OPENAI_KEY
         script: |
+          export OPENAI_KEY=$OPENAI_KEY
+          echo "OPENAI_KEY is $OPENAI_KEY"
+          
           # 프로젝트 디렉터리로 이동
           cd ~/MLOps
           
