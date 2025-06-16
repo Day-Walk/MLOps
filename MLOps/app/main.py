@@ -13,7 +13,7 @@ from datetime import datetime
 from app.routers import recommendation, chatbot
 
 # 환경 변수 설정
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_KEY", "")
 
 app = FastAPI(
     title="MLOps 통합 API",
