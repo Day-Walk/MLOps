@@ -40,7 +40,7 @@ async def search_places(query: str, max_results: int = 23):
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/api/place/search/llm-tool", response_model=LLMToolResponse)
-async def search_places_for_llm_tool(region: str, categories: List[str] = Query(..., min_length=3)):
+async def search_places_for_llm_tool(region: str, categories: List[str] = Query(..., min_length=1, max_length=3)):
     """LLM 도구를 위한 장소 검색 API"""
     try:
         if not elasticsearch_service.is_connected():
