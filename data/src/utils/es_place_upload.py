@@ -1,4 +1,4 @@
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, helpers
 import csv, json
 import logging
 from typing import Dict, Any, List, Optional
@@ -63,8 +63,7 @@ class KoreanContentElasticsearch:
                         "tokenizer": {
                             "my_nori_tokenizer": {
                                 "type": "nori_tokenizer",
-                                "decompound_mode": "mixed",
-                                "user_dictionary": "userdict_ko.txt"
+                                "decompound_mode": "mixed"
                             }
                         },
                         "analyzer": {
@@ -114,12 +113,22 @@ class KoreanContentElasticsearch:
                             }
                         }
                     },
+                    "gu": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                    },
+                    "dong": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                    },
                     "ro": {
                         "type": "text",
                         "analyzer": "my_nori_analyzer",
                         "search_analyzer": "my_nori_analyzer",
                     },
-                    "subway": {
+                    "station": {
                         "type": "text",
                         "analyzer": "my_nori_analyzer",
                         "search_analyzer": "my_nori_analyzer",
@@ -161,6 +170,11 @@ class KoreanContentElasticsearch:
                                 "ignore_above": 256
                             }
                         }
+                    },
+                    "alias": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
                     },
                     "address": {
                         "type": "text",
@@ -210,119 +224,97 @@ class KoreanContentElasticsearch:
             logger.error(f"인덱스 생성 실패: {e}")
             print(f"오류: 인덱스 생성 실패 - {e}")
             return False
-    
-    def insert_data_from_csv(self, index_name: str, csv_file_path: str, id_field: str = None) -> bool:
+
+    def insert_data_from_json(self, index_name: str, json_file_path: str) -> bool:
         """
-        CSV 파일에서 데이터를 읽어서 벌크 삽입
-        
+        JSON 파일에서 데이터를 읽어서 벌크 삽입
+
         Args:
             index_name: 대상 인덱스 이름
-            csv_file_path: CSV 파일 경로
-            id_field: 문서 ID로 사용할 필드명 (없으면 자동 생성)
-            
+            json_file_path: JSON 파일 경로
+
         Returns:
             삽입 성공 여부
         """
         try:
-            logger.info(f"CSV 파일 읽는 중: {csv_file_path}")
-            print(f"CSV 파일 읽는 중: {csv_file_path}")
-            
-            # CSV 파일을 데이터프레임으로 읽기
-            df = pd.read_csv(csv_file_path)
-            data = df.to_dict('records')
-            
+            logger.info(f"JSON 파일 읽는 중: {json_file_path}")
+            print(f"JSON 파일 읽는 중: {json_file_path}")
+
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
             logger.info(f"읽어온 데이터 개수: {len(data)}")
             print(f"읽어온 데이터 개수: {len(data)}")
-            
-            # 필수 필드 확인
-            required_fields = ["uuid", "name", "category", "subcategory", "address", "content"]
-            processed_data = []
-            
-            for i, doc in enumerate(data):
-                # 필수 필드 존재 확인
-                missing_fields = [field for field in required_fields if field not in doc]
-                if missing_fields:
-                    logger.warning(f"문서 {i+1}에서 누락된 필드: {missing_fields}")
-                    print(f"경고: 문서 {i+1}에서 누락된 필드: {missing_fields}")
-                    continue
+
+            actions = []
+            for doc in data:
+                # 필드 이름 매핑 및 전처리
+                location_str = doc.get("location", "")
+                lat, lon = None, None
+                if location_str:
+                    try:
+                        lat, lon = map(float, location_str.split())
+                    except ValueError:
+                        logger.warning(f"잘못된 location 형식: {location_str}")
                 
-                processed_data.append(doc)
-            
-            if not processed_data:
-                logger.error("삽입할 유효한 데이터가 없습니다.")
-                print("오류: 삽입할 유효한 데이터가 없습니다.")
-                return False
-            
-            logger.info(f"유효한 데이터 개수: {len(processed_data)}")
-            print(f"유효한 데이터 개수: {len(processed_data)}")
-            
-            # 벌크 삽입 준비
-            bulk_body = []
-            for i, doc in enumerate(processed_data):
-                # 문서 ID 결정
-                doc_id = doc.get(id_field) if id_field else i + 1
-                
-                # 벌크 작업 정의
-                bulk_body.append({
-                    "index": {
-                        "_index": index_name,
-                        "_id": doc_id
+                es_doc = {
+                    "_index": index_name,
+                    "_id": doc.get("uuid"),
+                    "_source": {
+                        "uuid": doc.get("uuid"),
+                        "name": doc.get("name"),
+                        "category": doc.get("category"),
+                        "subcategory": doc.get("subCategory"),
+                        "alias": doc.get("alias"),
+                        "address": doc.get("address"),
+                        "content": doc.get("content"),
+                        "gu": doc.get("gu"),
+                        "dong": doc.get("dong"),
+                        "ro": doc.get("ro"),
+                        "station": doc.get("station"),
+                        "location": {"lat": lat, "lon": lon} if lat and lon else None,
+                        "opentime": doc.get("opentime"),
+                        "breaktime": doc.get("breaktime"),
+                        "closedate": doc.get("closeDate"),
+                        "phone": doc.get("phoneNum")
                     }
-                })
-                bulk_body.append(doc)
+                }
+                # None 값을 가진 필드 제거
+                es_doc["_source"] = {k: v for k, v in es_doc["_source"].items() if v is not None}
+                actions.append(es_doc)
             
             logger.info("벌크 삽입 실행 중...")
             print("벌크 삽입 실행 중...")
             
-            # 벌크 삽입 결과 추적
-            success_count = 0
-            errors = []
+            success, failed = helpers.bulk(self.es, actions, stats_only=True, raise_on_error=False)
+
+            logger.info(f"벌크 삽입 완료 - 성공: {success}개, 실패: {failed}개")
+            print(f"벌크 삽입 완료 - 성공: {success}개, 실패: {failed}개")
             
-            try:
-                # 벌크 삽입 실행 및 응답 처리
-                response = self.es.bulk(body=bulk_body)
-                
-                # 응답에서 성공/실패 항목 처리
-                if not response.get('errors'):
-                    success_count = len(processed_data)
-                else:
-                    for item in response['items']:
-                        if 'index' in item and item['index'].get('status') == 201:
-                            success_count += 1
-                        else:
-                            error_reason = item.get('index', {}).get('error', {}).get('reason', '알 수 없는 오류')
-                            errors.append(error_reason)
-                            
-            except Exception as e:
-                logger.error(f"벌크 삽입 중 오류 발생: {str(e)}")
-                print(f"오류: 벌크 삽입 중 오류 발생 - {str(e)}")
-                return False
-            
-            # 결과 출력
-            logger.info(f"벌크 삽입 완료 - 성공: {success_count}개")
-            print(f"벌크 삽입 완료 - 성공: {success_count}개")
-            
-            if errors:
-                logger.warning(f"삽입 실패: {len(errors)}개")
-                print(f"경고: 삽입 실패 {len(errors)}개")
-                
-                # 처음 3개 에러만 상세 출력
-                for i, error in enumerate(errors[:3]):
-                    logger.warning(f"에러 {i+1}: {error}")
-                    print(f"에러 {i+1}: {error}")
-                
-                if len(errors) > 3:
-                    logger.warning(f"추가로 {len(errors)-3}개의 에러가 더 있습니다.")
-                    print(f"추가로 {len(errors)-3}개의 에러가 더 있습니다.")
+            return failed == 0
+
         except FileNotFoundError:
-            logger.error(f"파일을 찾을 수 없습니다: {csv_file_path}")
-            print(f"오류: 파일을 찾을 수 없습니다 - {csv_file_path}")
+            logger.error(f"파일을 찾을 수 없습니다: {json_file_path}")
+            print(f"오류: 파일을 찾을 수 없습니다 - {json_file_path}")
             return False
-        except pd.errors.EmptyDataError:
-            logger.error(f"CSV 파일이 비어있습니다: {csv_file_path}")
-            print(f"오류: CSV 파일이 비어있습니다 - {csv_file_path}")
+        except json.JSONDecodeError:
+            logger.error(f"JSON 파일 형식이 잘못되었습니다: {json_file_path}")
+            print(f"오류: JSON 파일 형식이 잘못되었습니다 - {json_file_path}")
             return False
         except Exception as e:
             logger.error(f"데이터 삽입 실패: {e}")
             print(f"오류: 데이터 삽입 실패 - {e}")
             return False
+
+
+if __name__ == '__main__':
+    es_client = KoreanContentElasticsearch()
+
+    # 인덱스 이름 설정
+    INDEX_NAME = "place_data"
+    
+    # JSON 파일 경로 설정
+    JSON_FILE_PATH = "data/place_json_preprocessing.json"
+
+    if es_client.create_korean_content_index(INDEX_NAME):
+        es_client.insert_data_from_json(INDEX_NAME, JSON_FILE_PATH)
