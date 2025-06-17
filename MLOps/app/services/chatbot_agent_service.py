@@ -64,10 +64,10 @@ class ChatbotAgentService:
         @tool
         def search_with_filtering(uuid_list: list[str], query: str):
             """
-            uuid_list로 사전 필터링한 후, 사용자 쿼리와의 유사도를 기반으로 최종 장소 목록을 검색합니다.
-            이 도구는 elastic_search를 통해 얻은 uuid_list를 사용해 더 정확한 결과를 찾을 때 사용됩니다.
+            'elastic_search'를 통해 얻은 uuid_list로 장소들을 1차 필터링한 후,
+            사용자의 원래 질문(query)과의 유사도를 기반으로 가장 관련성 높은 장소 목록을 최종적으로 반환합니다.
             - uuid_list: 'elastic_search' 도구에서 반환된 장소 UUID 목록입니다.
-            - query: 사용자의 원래 질문 또는 의도입니다. (예: "분위기 좋은 카페 가고 싶어")
+            - query: "홍대 분위기 좋은 카페 추천해줘" 와 같이, 사용자가 입력한 원래의 전체 질문입니다. 이 전체 질문을 통해 장소의 분위기나 특징과의 유사성을 파악합니다.
             """
             retriever = self.chroma_db.as_retriever(
                 search_type="similarity",
@@ -86,28 +86,32 @@ class ChatbotAgentService:
 
     def _create_agent_executor(self, memory):
         prompt_template = """
-당신은 사용자에게 맞춤형 데이트 코스를 추천하는 똑똑하고 친절한 챗봇 '데이워커'입니다.
+You have two models available: a "Course Recommendation AI" and a "General Conversation AI". Based on the user's input, determine which model is more appropriate to generate a response.
 
-【역할 및 지침】
-- 당신의 주된 목표는 사용자와 대화하여 원하는 '지역'과 '카테고리'를 파악하고, 이를 바탕으로 장소를 추천하는 것입니다.
-- 사용자가 처음 장소를 추천해달라고 하면, 먼저 `elastic_search` 도구를 사용하여 장소 후보 목록을 가져와야 합니다.
-- `elastic_search`를 통해 얻은 장소 목록(uuids)이 너무 많거나 사용자의 의도가 더 구체적이라면, `search_with_filtering` 도구를 사용하여 결과를 더 좁힐 수 있습니다.
-- 항상 제공된 도구를 사용하여 정보를 검색해야 하며, 절대로 임의의 장소를 만들거나 당신의 지식에 기반해 답변해서는 안 됩니다.
-- 최종 추천은 `search_with_filtering` 도구로부터 받은 장소 목록을 바탕으로, 아래 '응답 형식'에 맞게 제공해주세요.
-- `search_with_filtering` 도구의 결과에는 장소 목록이 반환됩니다. 각 장소는 `page_content`와 `metadata`로 구성됩니다. `page_content`에는 장소에 대한 풍부한 설명이, `metadata`에는 `name`, `address`, `uuid`와 같은 핵심 정보가 들어있습니다. 이 정보들을 종합하여 `str1`과 `str2`를 작성해주세요.
-- 사용자의 질문이 불분명하면, "어떤 지역을 원하세요?" 또는 "무엇을 하고 싶으신가요?" 와 같이 명확한 질문을 통해 필요한 정보를 얻으세요.
+[Course Recommendation AI]
+This AI is activated when the user asks for a place recommendation. It follows a strict, step-by-step process.
 
-【말투】
-- 항상 따뜻하고 친근한 말투를 사용하세요. (예: "좋아요! 천천히 같이 코스를 짜볼게요 ^^", "분위기 좋은 곳 위주로 찾아볼게요.")
+#Step 1: Use the `elastic_search` tool.
+- Extract the 'region' and 'category' from the user's query to use as arguments for the `elastic_search` tool.
+- If the necessary information is not in the query, ask the user for it.
 
-【응답 형식】
-- 충분한 정보가 수집되어 코스를 추천할 때, 반드시 아래 JSON 형식을 따라주세요. 다른 텍스트는 추가하지 마세요.
+#Step 2: Use the `search_with_filtering` tool.
+- Use the `uuid_list` obtained from `elastic_search` and the user's original query as arguments for the `search_with_filtering` tool.
 
+#Step 3: Generate the final course recommendation.
+- Synthesize the information from the `search_with_filtering` results to create the final response.
+- The `search_with_filtering` tool returns a list of places, where each place consists of `page_content` (a detailed description) and `metadata` (containing `name`, `address`, `uuid`, etc.).
+- Use this information to compose a creative and appealing `str1` (overall course description) and `str2` (detailed description of each place).
+- The final response MUST be in the following JSON format. Do not add any other text.
 {{
-  "str1": "사용자 요청에 맞춘 데이트 코스에 대한 전반적인 설명입니다. 예를 들어, '홍대에서 즐길 수 있는 예술과 미식의 조화로운 하루 코스'와 같이 창의적이고 매력적인 소개를 작성해주세요.",
-  "str2": "추천하는 각 장소에 대한 구체적인 설명입니다. '1. [장소 이름]: [장소 설명] \\n2. [장소 이름]: [장소 설명]' 형식으로 작성해주세요. 장소 이름 뒤에는 콜론(:)을 붙이고, 각 장소는 줄바꿈(\\n)으로 구분해주세요."
+  "str1": "This is an overall description of the date course tailored to the user's request. For example, 'A harmonious day course in Hongdae, blending art and cuisine.'",
+  "str2": "This provides a detailed description of each recommended place. Please format it as '1. [Place Name]: [Place Description] \\n2. [Place Name]: [Place Description]'. Use a colon (:) after the place name and a newline character (\\n) to separate each place."
 }}
-- 위 JSON 형식은 코스를 추천할 때만 사용해야 합니다. 사용자에게 질문을 하거나 다른 대화를 할 때는 JSON 형식이 아닌 일반 텍스트로 자유롭게 답변해주세요.
+
+[General Conversation AI]
+- This AI is activated for all other conversations, such as simple greetings or chit-chat.
+- It should respond naturally and kindly in plain text, not in JSON format.
+- Maintain a warm and friendly tone (e.g., "Of course! Let's plan a course together slowly ^^").
 """
         
         prompt = ChatPromptTemplate.from_messages([
@@ -164,11 +168,13 @@ class ChatbotAgentService:
         str1 = ""
         str2 = ""
         try:
+            # 응답이 JSON 형식일 수 있으므로 파싱 시도
             answer_json = json.loads(final_answer)
             str1 = answer_json.get("str1", "")
             str2 = answer_json.get("str2", "")
-        except json.JSONDecodeError:
-            # 추천 코스를 담은 JSON 형식이 아니라면 일반적인 답변으로 간주
+        except (json.JSONDecodeError, TypeError):
+            # JSON 파싱 실패 시 일반 텍스트 답변으로 간주
             str1 = final_answer
 
+        # 최종 응답 생성. placeid가 비어있더라도 str1, str2는 채워져 있을 수 있음
         return {"str1": str1, "placeid": ordered_uuids, "str2": str2} 
