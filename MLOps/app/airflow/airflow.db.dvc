@@ -1,0 +1,5 @@
+outs:
+- md5: 0affe40f1ebd44cb267384a8d0c82ee3
+  size: 1331200
+  hash: md5
+  path: airflow.db

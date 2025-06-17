@@ -1,0 +1,5 @@
+outs:
+- md5: 93e7015afafbf93f8981f8b0ea505f3e
+  size: 15238
+  hash: md5
+  path: area_info.xlsx
