@@ -33,7 +33,7 @@ class ChatbotAgentService:
         # 노트북에서 정의된 도구들을 클래스 메소드로 변환
         
         @tool
-        def elastic_search(query: dict):
+        def elastic_search(region: str, categories: list[str]):
             """
             사용자가 검색을 원하는 '지역(region)'과 '카테고리(categories)'를 인자로 받아,
             해당 조건에 맞는 장소들의 UUID 리스트를 반환합니다.
@@ -43,9 +43,6 @@ class ChatbotAgentService:
 
             - 정확한 카테고리가 들어오지 않더라도 유사한 카테고리를 추출하여 인자로 받아주세요.
             """
-            region = query.get('region')
-            categories = query.get('categories')
-            
             if not region or not categories:
                 return "지역과 카테고리를 정확히 입력해주세요."
 
