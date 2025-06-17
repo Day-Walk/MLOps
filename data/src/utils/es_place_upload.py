@@ -48,12 +48,6 @@ class KoreanContentElasticsearch:
     def create_korean_content_index(self, index_name: str) -> bool:
         """
         한국어 콘텐츠를 위한 인덱스 생성 (nori_tokenizer 사용)
-        
-        Args:
-            index_name: 생성할 인덱스 이름
-            
-        Returns:
-            생성 성공 여부
         """
         try:
             # 인덱스가 이미 존재하는지 확인
@@ -63,108 +57,139 @@ class KoreanContentElasticsearch:
                 return True
             
             # 한국어 분석을 위한 설정
-            index_settings = {
-                "number_of_shards": 1,
-                "number_of_replicas": 0,
-                "analysis": {
-                    "tokenizer": {
-                        "nori_user_dict": {
-                            "type": "nori_tokenizer",
-                            "decompound_mode": "mixed",
-                            "discard_punctuation": "true"
-                        }
-                    },
-                    "analyzer": {
-                        "korean_analyzer": {
-                            "type": "custom",
-                            "tokenizer": "nori_user_dict",
-                            "filter": [
-                                "nori_part_of_speech",
-                                "nori_readingform",
-                                "lowercase"
-                            ]
+            settings = {
+                "index": {
+                    "analysis": {
+                        "tokenizer": {
+                            "my_nori_tokenizer": {
+                                "type": "nori_tokenizer",
+                                "decompound_mode": "mixed",
+                                "user_dictionary": "userdict_ko.txt"
+                            }
                         },
-                        "korean_search_analyzer": {
-                            "type": "custom", 
-                            "tokenizer": "nori_user_dict",
-                            "filter": [
-                                "nori_part_of_speech",
-                                "lowercase"
-                            ]
-                        }
-                    },
-                    "filter": {
-                        "nori_part_of_speech": {
-                            "type": "nori_part_of_speech",
-                            "stoptags": [
-                                "E", "IC", "J", "MAG", "MAJ", "MM", 
-                                "SP", "SSC", "SSO", "SC", "SE", "XPN", "XSA", "XSN", "XSV"
-                            ]
+                        "analyzer": {
+                            "my_nori_analyzer": {
+                                "type": "custom",
+                                "tokenizer": "my_nori_tokenizer",
+                                "filter": ["lowercase"]
+                            }
                         }
                     }
                 }
             }
             
             # 필드 매핑 정의
-            field_mappings = {
-                "uuid": {
-                    "type": "keyword"
-                },
-                "name": {
-                    "type": "text", 
-                    "analyzer": "korean_analyzer",
-                    "search_analyzer": "korean_search_analyzer",
-                    "fields": {
-                        "keyword": {
-                            "type": "keyword",
-                            "ignore_above": 256
+            mappings = {
+                "properties": {
+                    "uuid": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                            }
+                        }
+                    },
+                    "category": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                            }
+                        }
+                    },
+                    "subcategory": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                            }
+                        }
+                    },
+                    "ro": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                    },
+                    "subway": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                            }
+                        }
+                    },
+                    "location": {
+                        "type": "geo_point"
+                    },
+                    "opentime": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                    },
+                    "breaktime": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                    },
+                    "closedate": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                    },
+                    "phone": {
+                        "type": "text"
+                    },
+                    "name": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                            }
+                        }
+                    },
+                    "address": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                            }
+                        }
+                    },
+                    "content": {
+                        "type": "text",
+                        "analyzer": "my_nori_analyzer",
+                        "search_analyzer": "my_nori_analyzer",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                            }
                         }
                     }
-                },
-                "category": {
-                    "type": "text",
-                    "analyzer": "korean_analyzer",
-                    "search_analyzer": "korean_search_analyzer", 
-                    "fields": {
-                        "keyword": {
-                            "type": "keyword"
-                        }
-                    }
-                },
-                "subCategory": {
-                    "type": "text",
-                    "analyzer": "korean_analyzer",
-                    "search_analyzer": "korean_search_analyzer",
-                    "fields": {
-                        "keyword": {
-                            "type": "keyword"
-                        }
-                    }
-                },
-                "address": {
-                    "type": "text",
-                    "analyzer": "korean_analyzer",
-                    "search_analyzer": "korean_search_analyzer",
-                    "fields": {
-                        "keyword": {
-                            "type": "keyword",
-                            "ignore_above": 256
-                        }
-                    }
-                },
-                "content": {
-                    "type": "text",
-                    "analyzer": "korean_analyzer",
-                    "search_analyzer": "korean_search_analyzer"
                 }
             }
             
-            # 인덱스 생성 요청 바디
             index_body = {
-                "settings": index_settings,
-                "mappings": {
-                    "properties": field_mappings
-                }
+                "mappings": mappings,
+                "settings": settings
             }
             
             # 인덱스 생성
@@ -175,15 +200,6 @@ class KoreanContentElasticsearch:
             
             if response.get('acknowledged', False):
                 logger.info(f"인덱스 '{index_name}' 생성 완료")
-                print(f"인덱스 '{index_name}' 생성 완료")
-                print("매핑 정보:")
-                print("- name: text (한국어 분석)")
-                print("- category: text (한국어 분석)")  
-                print("- subCategory: text (한국어 분석)")
-                print("- address: text (한국어 분석)")
-                print("- content: text (한국어 분석)")
-                print("- timestamp: date (자동 생성)")
-                print(f"사용 분석기: nori_tokenizer 기반 korean_analyzer")
                 return True
             else:
                 logger.error(f"인덱스 생성 응답 확인 실패")
@@ -197,11 +213,11 @@ class KoreanContentElasticsearch:
     
     def insert_data_from_csv(self, index_name: str, csv_file_path: str, id_field: str = None) -> bool:
         """
-        JSON 파일에서 데이터를 읽어서 벌크 삽입
+        CSV 파일에서 데이터를 읽어서 벌크 삽입
         
         Args:
             index_name: 대상 인덱스 이름
-            json_file_path: JSON 파일 경로
+            csv_file_path: CSV 파일 경로
             id_field: 문서 ID로 사용할 필드명 (없으면 자동 생성)
             
         Returns:
@@ -302,9 +318,9 @@ class KoreanContentElasticsearch:
             logger.error(f"파일을 찾을 수 없습니다: {csv_file_path}")
             print(f"오류: 파일을 찾을 수 없습니다 - {csv_file_path}")
             return False
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON 파싱 오류: {e}")
-            print(f"오류: JSON 파싱 실패 - {e}")
+        except pd.errors.EmptyDataError:
+            logger.error(f"CSV 파일이 비어있습니다: {csv_file_path}")
+            print(f"오류: CSV 파일이 비어있습니다 - {csv_file_path}")
             return False
         except Exception as e:
             logger.error(f"데이터 삽입 실패: {e}")
