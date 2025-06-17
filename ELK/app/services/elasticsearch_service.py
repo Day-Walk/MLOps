@@ -1,5 +1,5 @@
 from elasticsearch import Elasticsearch
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from datetime import datetime
 
 
@@ -8,7 +8,7 @@ class ElasticsearchService:
     
     def __init__(self, host: str = "elasticsearch", port: int = 9200):
         self.es = Elasticsearch([{'host': host, 'port': port, 'scheme': 'http'}])
-        self.index_name = "place_data_v3"
+        self.index_name = "place_data"
         self.log_index_name = "chatbot_log"
         
     def is_connected(self) -> bool:
@@ -48,6 +48,91 @@ class ElasticsearchService:
         ]
         
         return places
+    
+    def search_places_chatbot(self, query: str, max_results: int = 100):
+        """챗봇 장소 검색"""
+        search_body = {
+            "query": {
+                "match": {
+                    "name": {
+                        "query": query,
+                        "fuzziness": "AUTO"
+                    }
+                }
+            },
+            "sort": [{"_score": {"order": "desc"}}],
+            "size": max_results,
+            "_source": ["uuid", "name", "category", "subcategory", "gu", "dong", "ro", "station", "location", "opentime", "breaktime", "closedate", "phone", "alias", "address", "content"]
+        }
+        
+        response = self.es.search(index=self.index_name, body=search_body)
+        
+        hits = response['hits']['hits']
+        places = [
+            {
+                'uuid': hit['_source']['uuid'],
+                'name': hit['_source']['name'], 
+                'category': hit['_source']['category'],
+                'subcategory': hit['_source']['subcategory'],
+                'gu': hit['_source']['gu'],
+                'dong': hit['_source']['dong'],
+                'ro': hit['_source']['ro'],
+                'station': hit['_source']['station'],
+                'location': hit['_source']['location'],
+                'opentime': hit['_source']['opentime'],
+                'breaktime': hit['_source']['breaktime'],
+                'closedate': hit['_source']['closedate'],
+                'phone': hit['_source']['phone'],
+                'alias': hit['_source']['alias'],
+                'address': hit['_source']['address'],
+                'content': hit['_source']['content']
+            }
+            for hit in hits
+        ]
+        return places
+
+    def search_places_for_llm_tool(self, region: str, categories: List[str]) -> Tuple[List[str], int]:
+        """
+        LLM 도구를 위한 장소 검색.
+        지역과 카테고리 정보를 바탕으로 장소 uuid 목록과 총 개수를 반환합니다.
+        """
+        query_body = {
+            "query": {
+                "bool": {
+                    "must": [],
+                    "filter": []
+                }
+            },
+            "size": 10000,
+            "_source": ["uuid"],
+            "track_total_hits": True
+        }
+
+        if region:
+            query_body["query"]["bool"]["must"].append({
+                "multi_match": {
+                    "query": region,
+                    "fields": ["gu", "dong", "ro", "station", "address"]
+                }
+            })
+
+        if categories:
+            query_body["query"]["bool"]["filter"].append({
+                "bool": {
+                    "should": [
+                        {"terms": {"category.keyword": categories}},
+                        {"terms": {"subcategory.keyword": categories}}
+                    ],
+                    "minimum_should_match": 1
+                }
+            })
+            
+        response = self.es.search(index=self.index_name, body=query_body)
+        
+        uuids = [hit['_source']['uuid'] for hit in response['hits']['hits']]
+        total = response['hits']['total']['value']
+        
+        return uuids, total
 
     def create_log_index_if_not_exists(self):
         """로그 인덱스가 없으면 생성"""
@@ -57,30 +142,30 @@ class ElasticsearchService:
                 mapping = {
                     "mappings": {
                         "properties": {
-                                "userId": {"type": "keyword"},
-                                "question": {"type": "text", "analyzer": "nori"},
-                                "answer": {
-                                    "properties": {
-                                        "title": {"type": "text"},
-                                        "placeList": {
-                                            "properties": {
-                                                "placeId": {"type": "keyword"},
-                                                "name": {"type": "text", "analyzer": "nori"},
-                                                "address": {"type": "text", "analyzer": "nori"},
-                                                "imgUrl": {"type": "keyword"},
-                                                "location": {
-                                                    "lat": {"type": "float"},
-                                                    "lng": {"type": "float"}
-                                                }
+                            "userId": {"type": "keyword"},
+                            "question": {"type": "text", "analyzer": "nori"},
+                            "answer": {
+                                "properties": {
+                                    "title": {"type": "text"},
+                                    "placeList": {
+                                        "properties": {
+                                            "placeId": {"type": "keyword"},
+                                            "name": {"type": "text", "analyzer": "nori"},
+                                            "address": {"type": "text", "analyzer": "nori"},
+                                            "imgUrl": {"type": "keyword"},
+                                            "location": {
+                                                "lat": {"type": "float"},
+                                                "lng": {"type": "float"}
                                             }
-                                        },
-                                        "detail": {"type": "text", "analyzer": "nori"}
-                                    }
-                                },
-                                "createAt": {"type": "date"}
-                            }
+                                        }
+                                    },
+                                    "detail": {"type": "text", "analyzer": "nori"}
+                                }
+                            },
+                            "createAt": {"type": "date"}
                         }
                     }
+                }
                 self.es.indices.create(index=self.log_index_name, body=mapping)
                 print(f"로그 인덱스 '{self.log_index_name}' 생성 완료")
         except Exception as e:

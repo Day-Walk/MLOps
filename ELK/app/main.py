@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import List
 
-from app.schema.search_schemas import SearchResponse
+from app.schema.search_schemas import SearchResponse, LLMToolResponse
 from app.services.elasticsearch_service import ElasticsearchService
 from app.schema.log_schemas import LogRequest, LogResponse
 
@@ -33,6 +34,27 @@ async def search_places(query: str, max_results: int = 23):
             success=True,
             places=places,
             total=len(places)
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/api/place/search/llm-tool", response_model=LLMToolResponse)
+async def search_places_for_llm_tool(region: str, categories: List[str] = Query(..., min_length=3)):
+    """LLM 도구를 위한 장소 검색 API"""
+    try:
+        if not elasticsearch_service.is_connected():
+            raise HTTPException(status_code=503, detail="Elasticsearch 연결 실패")
+        
+        uuids, total = elasticsearch_service.search_places_for_llm_tool(
+            region=region,
+            categories=categories
+        )
+        
+        return LLMToolResponse(
+            success=True,
+            uuids=uuids,
+            total=total
         )
         
     except Exception as e:

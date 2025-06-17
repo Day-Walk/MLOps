@@ -12,3 +12,8 @@ class SearchResponse(BaseModel):
     success: bool
     places: List[Place]
     total: int
+
+class LLMToolResponse(BaseModel):
+    success: bool
+    uuids: List[str]
+    total: int
