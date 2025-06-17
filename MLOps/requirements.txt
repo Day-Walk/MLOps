@@ -30,7 +30,10 @@ pydantic==2.11.7
 elasticsearch==8.15.0
 transformers==4.52.4
 
-# OpenAI
+# ChatBot / LangChain
+langchain==0.3.10
+langchain-openai==0.3.10
+langchain-community==0.3.10
 openai==1.68.2
 
 # DB Connection
