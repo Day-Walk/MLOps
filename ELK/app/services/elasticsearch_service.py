@@ -67,7 +67,11 @@ class ElasticsearchService:
                                                 "placeId": {"type": "keyword"},
                                                 "name": {"type": "text", "analyzer": "nori"},
                                                 "address": {"type": "text", "analyzer": "nori"},
-                                                "imgUrl": {"type": "keyword"}
+                                                "imgUrl": {"type": "keyword"},
+                                                "location": {
+                                                    "lat": {"type": "float"},
+                                                    "lng": {"type": "float"}
+                                                }
                                             }
                                         },
                                         "detail": {"type": "text", "analyzer": "nori"}
