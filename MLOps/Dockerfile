@@ -1,4 +1,3 @@
-# MLOps/Dockerfile
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -7,6 +6,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -U langchain-chroma chromadb
 
 # app 디렉토리만 복사 (중요!)
 COPY ./app ./app
