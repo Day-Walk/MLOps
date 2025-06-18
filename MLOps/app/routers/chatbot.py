@@ -40,17 +40,14 @@ async def chat_stream_endpoint(
     LangChain 에이전트 기반 SSE 스트리밍 챗봇 API
     - GET 방식으로 `userid`와 `query`를 받습니다.
     - 에이전트가 생성한 최종 응답을 JSON 형식으로 스트리밍합니다.
-    - 출력 형식: {"placeid": ["장소UUID", ...], "str1": "추천 코스"}
+    - 출력 형식: {"placeid": ["장소UUID", ...], "str": "추천 코스"}
     """
-    if not langchain_agent_service:
-        async def error_stream():
-            error_message = {
-                "placeid": [],
-                "str1": "죄송합니다. 챗봇 서비스가 준비되지 않았습니다. 서비스 초기화에 실패했습니다."
-            }
-            yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
-        return StreamingResponse(error_stream(), media_type="text/event-stream")
+    service = langchain_agent_service
+    if not service:
+        raise HTTPException(
+            status_code=503,
+            detail="Chatbot service is unavailable. Check server logs for initialization errors (e.g., missing OPENAI_API_KEY)."
+        )
 
     session_id = userid or str(uuid.uuid4())
     active_sessions[session_id] = {"start_time": datetime.now(), "query": query}
@@ -60,7 +57,7 @@ async def chat_stream_endpoint(
         try:
             # 1. 에이전트를 별도 스레드에서 실행
             agent_response = await asyncio.to_thread(
-                langchain_agent_service.get_response,
+                service.get_response,
                 user_message=query,
                 user_id=session_id
             )
