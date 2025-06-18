@@ -3,6 +3,7 @@ import json
 import requests
 from urllib.parse import quote
 from typing import List, Dict, Any
+import functools
 
 from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain.callbacks import StdOutCallbackHandler
@@ -12,6 +13,31 @@ from langchain.memory import ConversationBufferMemory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_community.vectorstores import Chroma
+from langchain.globals import set_llm_cache
+from langchain.cache import InMemoryCache
+
+@functools.lru_cache(maxsize=100)
+def _elastic_search_cached(region: str, categories: tuple) -> list:
+    """Cached implementation for Elasticsearch search."""
+    if not region or not categories:
+        return []
+
+    print(f"--- (Cache Miss) 엘라스틱 검색: region={region}, categories={categories} ---")
+
+    region_encoded = quote(region)
+    category_encoded = '&'.join([f"categories={quote(cat)}" for cat in categories])
+    url = f"http://15.164.50.188:9201/api/place/search/llm-tool?region={region_encoded}&{category_encoded}"
+
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        response_json = response.json()
+        uuid_list = response_json.get('uuids', [])
+        print(f"--- 엘라스틱 검색 결과: {len(uuid_list)}개 장소 ---")
+        return uuid_list
+    except requests.exceptions.RequestException as e:
+        print(f"엘라스틱 검색 API 호출 오류: {e}")
+        return []
 
 @tool
 def elastic_search(region: str, categories: List[str]) -> list:
@@ -33,34 +59,15 @@ def elastic_search(region: str, categories: List[str]) -> list:
         >>> elastic_search('종로', ['음식점&카페', '문화시설'])
         ['a1b2c3', 'd4e5f6']
     """
-    if not region or not categories:
-        return []
-
-    print(f"--- 엘라스틱 검색: region={region}, categories={categories} ---")
-
-    region_encoded = quote(region)
-    category_encoded = '&'.join([f"categories={quote(cat)}" for cat in categories])
-
-    url = f"http://15.164.50.188:9201/api/place/search/llm-tool?region={region_encoded}&{category_encoded}"
-
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        response_json = response.json()
-        uuid_list = response_json.get('uuids', [])
-        print(f"--- 엘라스틱 검색 결과: {len(uuid_list)}개 장소 ---")
-        return uuid_list
-    except requests.exceptions.RequestException as e:
-        print(f"엘라스틱 검색 API 호출 오류: {e}")
-        return []
-
+    # Convert list to a sorted tuple to make it hashable and canonical for caching
+    return _elastic_search_cached(region, tuple(sorted(categories)))
 
 class LangchainAgentService:
     def __init__(self, openai_api_key: str):
         if not openai_api_key:
             raise ValueError("OpenAI API 키가 필요합니다.")
         os.environ["OPENAI_API_KEY"] = openai_api_key
-        
+        set_llm_cache(InMemoryCache())
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         
         # 임베딩 모델 초기화
@@ -71,7 +78,7 @@ class LangchainAgentService:
         )
         
         # ChromaDB 로드
-        chroma_db_path = "/home/ubuntu/MLOps/data/chroma_db_bge"
+        chroma_db_path = "/app/data/chroma_db_bge"
         if not os.path.exists(chroma_db_path):
             raise FileNotFoundError(f"ChromaDB 경로를 찾을 수 없습니다: {chroma_db_path}")
         self.chroma_bge = Chroma(
@@ -83,6 +90,16 @@ class LangchainAgentService:
         self.tools = [elastic_search, self._create_search_with_filtering_tool()]
         self.prompt = self._create_prompt_template()
         self.user_memories = {}
+
+    def get_cache_info(self):
+        """`elastic_search` 도구의 캐시 정보를 반환합니다."""
+        info = _elastic_search_cached.cache_info()
+        return {
+            "hits": info.hits,
+            "misses": info.misses,
+            "maxsize": info.maxsize,
+            "current_size": info.currsize
+        }
 
     def _create_search_with_filtering_tool(self):
         @tool

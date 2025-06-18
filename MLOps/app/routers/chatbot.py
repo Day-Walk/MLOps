@@ -119,3 +119,15 @@ async def chat_health_check():
         "service": "langchain_agent_chatbot",
         "active_sessions": len(active_sessions)
     }
+
+@router.get("/chat/cache-stats")
+async def get_cache_stats():
+    """`elastic_search` 도구의 캐시 통계를 확인합니다."""
+    if not langchain_agent_service:
+        raise HTTPException(status_code=503, detail="Chatbot service is not available.")
+    
+    try:
+        stats = langchain_agent_service.get_cache_info()
+        return {"success": True, "cache_stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
