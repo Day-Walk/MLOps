@@ -48,7 +48,7 @@ class ChatbotAgentService:
         
         self.embedding_function = HuggingFaceEmbeddings(
             model_name="upskyy/bge-m3-korean",
-            model_kwargs={'device': 'cuda'},
+            model_kwargs={'device': 'cpu'},
             encode_kwargs={'normalize_embeddings': True}
         )
         
