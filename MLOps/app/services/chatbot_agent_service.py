@@ -123,14 +123,6 @@ class ChatbotAgentService:
             )
             docs = retriever.invoke(query)
 
-            if not docs:
-                # 필터링된 결과가 없으면 필터 없이 다시 검색
-                retriever = self.chroma_db.as_retriever(
-                    search_type="similarity",
-                    search_kwargs={"k": 5}
-                )
-                docs = retriever.invoke(query)
-
             return [doc.model_dump() for doc in docs]
 
         return [elastic_search, search_with_filtering]
@@ -162,17 +154,24 @@ class ChatbotAgentService:
         response = agent_executor.invoke({"input": user_message})
         output = response.get("output", "죄송합니다. 답변을 생성하지 못했습니다.")
         
-        # LLM이 JSON 형식으로 응답하지 않았을 경우 처리
-        try:
-            # The output from the agent should be a string that is a valid JSON.
-            # We parse it to ensure it's a JSON object before returning.
-            if isinstance(output, str):
-                return json.loads(output)
+        if not isinstance(output, str):
             return output
+
+        # LLM 응답에서 JSON 객체만 추출 시도
+        try:
+            # 가장 먼저 나오는 '{'와 가장 마지막에 나오는 '}'를 찾아 JSON 추출
+            start_index = output.find('{')
+            end_index = output.rfind('}')
+            if start_index != -1 and end_index != -1:
+                json_str = output[start_index:end_index+1]
+                return json.loads(json_str)
         except json.JSONDecodeError:
-            # If parsing fails, wrap the raw output in the specified JSON format.
-            return {
-                "str1": output,
-                "placeid": [],
-                "str2": ""
-            }
+            # JSON 추출에 실패하면 전체 출력을 메시지로 사용
+            pass
+        
+        # JSON 파싱에 실패한 경우, LLM의 응답이 순수 텍스트라고 간주하고 포맷에 맞춰 반환
+        return {
+            "str1": output,
+            "placeid": [],
+            "str2": ""
+        }
