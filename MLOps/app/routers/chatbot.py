@@ -1,9 +1,8 @@
 """
-OpenAI 연결 챗봇 라우터
-실제 GPT API와 연결, GET 방식 + SSE 스트리밍 지원
+Langchain Agent 기반 챗봇 라우터
 """
 from fastapi import APIRouter, Query, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from typing import Optional
 import asyncio
 import json
@@ -12,219 +11,86 @@ from datetime import datetime
 import traceback
 import os
 
-from app.services.openai_service import OpenAIService
-from app.services.place_extractor import PlaceExtractor
-from app.schema.chat_schema import ChatResponse, ChatStats, AgentChatRequest, normalize_agent_response
-from app.services.chatbot_agent_service import ChatbotAgentService
+from app.services.langchain_agent_service import LangchainAgentService
 
 router = APIRouter(prefix="/api", tags=["chatbot"])
 
-# 서비스 초기화
-openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
-place_extractor = PlaceExtractor()
 # Langchain Agent 서비스 초기화
 try:
-    chatbot_agent_service = ChatbotAgentService()
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        print("경고: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
+        langchain_agent_service = None
+    else:
+        langchain_agent_service = LangchainAgentService(openai_api_key=openai_api_key)
 except Exception as e:
-    print(f"Error initializing ChatbotAgentService: {e}")
-    chatbot_agent_service = None
+    print(f"Error initializing LangchainAgentService: {e}")
+    traceback.print_exc()
+    langchain_agent_service = None
 
+# 활성 세션을 추적하기 위한 간단한 딕셔너리
 active_sessions = {}
-
-@router.post("/chat/agent")
-async def chat_agent_endpoint(request: AgentChatRequest):
-    """
-    LangChain 에이전트 기반 챗봇 API
-    """
-    if not chatbot_agent_service:
-        raise HTTPException(status_code=503, detail="Chatbot agent service is not available.")
-
-    try:
-        current_session_id = request.session_id or str(uuid.uuid4())
-        print(f"Agent chat request: {request.message} (Session: {current_session_id})")
-        
-        # 에이전트 호출
-        agent_response = await asyncio.to_thread(
-            chatbot_agent_service.get_response, 
-            user_message=request.message, 
-            session_id=current_session_id
-        )
-
-        # 응답이 이미 딕셔너리 형태이므로 바로 사용
-        # 추가 정규화가 필요한 경우를 대비해 한 번 더 검증
-        if not isinstance(agent_response, dict):
-            agent_response = normalize_agent_response(agent_response).dict()
-        
-        # ChatResponse 형식으로 검증
-        validated_response = ChatResponse(**agent_response)
-
-        return JSONResponse(content={
-            "session_id": current_session_id, 
-            "response": validated_response.dict()
-        })
-
-    except Exception as e:
-        print(f"Agent chat processing error: {e}")
-        traceback.print_exc()
-        
-        # 에러 발생 시에도 일관된 형식으로 응답
-        error_response = ChatResponse(
-            str1="죄송합니다. 처리 중 오류가 발생했습니다.",
-            placeid=[],
-            str2=""
-        )
-        
-        return JSONResponse(
-            status_code=500,
-            content={
-                "session_id": request.session_id or str(uuid.uuid4()),
-                "response": error_response.dict()
-            }
-        )
-
-@router.get("/chat", response_model=ChatResponse)
-async def chat_endpoint(
-    message: str = Query(..., description="사용자 메시지"),
-    session_id: Optional[str] = Query(None, description="세션 ID")
-):
-    """
-    OpenAI 챗봇 API (GET 방식)
-    응답: {"str1": "GPT 답변", "placeid": ["uuid1", "uuid2"], "str2": null}
-    """
-    if not openai_service:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "str1": "죄송합니다. 챗봇 서비스가 준비되지 않았습니다.",
-                "placeid": None,
-                "str2": None
-            }
-        )
-    
-    try:
-        session_id = session_id or str(uuid.uuid4())
-        active_sessions[session_id] = {
-            "start_time": datetime.now(), 
-            "type": "sync"
-        }
-        
-        print(f"채팅 요청: {message} (세션: {session_id})")
-        print(f"활성 세션 수: {len(active_sessions)}")
-        
-        # OpenAI API 호출
-        gpt_response = await openai_service.get_chat_completion(message)
-        
-        # 장소 ID 추출
-        place_ids = place_extractor.extract_place_ids_from_text(gpt_response)
-        
-        # 커스텀 응답 형식
-        response = {
-            "str1": gpt_response,
-            "placeid": place_ids if place_ids else None,
-            "str2": None
-        }
-        
-        # 세션 정리
-        active_sessions.pop(session_id, None)
-        
-        return JSONResponse(content=response)
-        
-    except Exception as e:
-        print(f"채팅 처리 오류: {e}")
-        active_sessions.pop(session_id, None)
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={
-                "str1": "죄송합니다. 일시적인 오류가 발생했습니다.",
-                "placeid": None,
-                "str2": None
-            }
-        )
 
 @router.get("/chat/stream")
 async def chat_stream_endpoint(
-    message: str = Query(..., description="사용자 메시지"),
-    userid: Optional[str] = Query(None, description="사용자 ID")
+    query: str = Query(..., description="사용자 질문"),
+    userid: Optional[str] = Query(None, description="사용자 ID (세션 유지를 위해 사용)")
 ):
     """
     LangChain 에이전트 기반 SSE 스트리밍 챗봇 API
-    완성된 메시지를 {"str1": "", "placeid": [], "str2": ""} 형식으로 전송
+    - GET 방식으로 `userid`와 `query`를 받습니다.
+    - 에이전트가 생성한 최종 응답을 JSON 형식으로 스트리밍합니다.
+    - 출력 형식: {"placeid": ["장소UUID", ...], "str1": "추천 코스"}
     """
-    if not chatbot_agent_service:
+    if not langchain_agent_service:
         async def error_stream():
-            error_response = ChatResponse(
-                str1="죄송합니다. 챗봇 서비스가 준비되지 않았습니다.",
-                placeid=[],
-                str2=""
-            )
             error_message = {
-                "type": "error",
-                "str1": error_response.str1,
-                "placeid": None, 
-                "str2": error_response.str2, 
-                "userid": userid
+                "placeid": [],
+                "str1": "죄송합니다. 챗봇 서비스가 준비되지 않았습니다. 서비스 초기화에 실패했습니다."
             }
             yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         return StreamingResponse(error_stream(), media_type="text/event-stream")
 
     session_id = userid or str(uuid.uuid4())
-    active_sessions[session_id] = {"start_time": datetime.now(), "type": "agent_stream"}
-    print(f"Agent 스트림 요청: {message} (사용자: {session_id})")
+    active_sessions[session_id] = {"start_time": datetime.now(), "query": query}
+    print(f"Agent 스트림 요청: {query} (사용자: {session_id})")
 
     async def generate_agent_stream():
         try:
             # 1. 에이전트를 별도 스레드에서 실행
             agent_response = await asyncio.to_thread(
-                chatbot_agent_service.get_response,
-                user_message=message,
-                session_id=session_id
+                langchain_agent_service.get_response,
+                user_message=query,
+                user_id=session_id
             )
 
-            # 2. 응답 정규화 및 검증
-            if not isinstance(agent_response, dict):
-                agent_response = normalize_agent_response(agent_response).dict()
-            
-            # ChatResponse 형식으로 검증
-            validated_response = ChatResponse(**agent_response)
-            
-            # 3. 최종 메시지 포맷팅 및 전송
-            final_message = {
-                "type": "complete",
-                "str1": validated_response.str1,
-                "placeid": validated_response.placeid if validated_response.placeid else None,
-                "str2": validated_response.str2,
-                "userid": session_id,
-                "timestamp": datetime.now().isoformat()
+            # 2. 응답을 요청된 형식으로 변환
+            # agent_response: {"place_uuids": list, "course": str}
+            final_response = {
+                "placeid": agent_response.get("place_uuids", []),
+                "str1": agent_response.get("course", "추천 코스를 생성하지 못했습니다.")
             }
-            yield f"data: {json.dumps(final_message, ensure_ascii=False)}\n\n"
+
+            # 3. 최종 메시지 전송
+            yield f"data: {json.dumps(final_response, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
-            
+
         except Exception as e:
             print(f"Agent 스트림 처리 오류: {e}")
             traceback.print_exc()
             
-            # 에러 발생 시에도 일관된 형식으로 응답
-            error_response = ChatResponse(
-                str1=f"처리 중 오류가 발생했습니다: {str(e)}",
-                placeid=[],
-                str2=""
-            )
-            
             error_message = {
-                "type": "error",
-                "str1": error_response.str1,
-                "placeid": None, 
-                "str2": error_response.str2, 
-                "userid": session_id
+                "placeid": [],
+                "str1": f"처리 중 오류가 발생했습니다: {str(e)}"
             }
             yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         
         finally:
             active_sessions.pop(session_id, None)
-    
+            print(f"Agent 스트림 종료 (사용자: {session_id})")
+
     return StreamingResponse(
         generate_agent_stream(),
         media_type="text/event-stream",
@@ -232,66 +98,28 @@ async def chat_stream_endpoint(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": "*",
-            "X-User-ID": session_id,
-            "X-Stream-Type": "structured_agent"
         }
     )
 
 @router.get("/chat/clear")
-async def clear_chat(session_id: str = Query(..., description="초기화할 세션 ID")):
-    """대화 기록 초기화 (GET 요청)"""
+async def clear_chat_history(
+    userid: str = Query(..., description="초기화할 사용자 ID")
+):
+    """지정된 사용자의 대화 기록을 초기화합니다."""
+    if not langchain_agent_service:
+        raise HTTPException(status_code=503, detail="Chatbot service is not available.")
+    
     try:
-        # 에이전트 세션 기록 삭제
-        if chatbot_agent_service:
-            chatbot_agent_service.clear_session(session_id)
-        
-        # 활성 세션 추적기에서 제거
-        removed = active_sessions.pop(session_id, None)
-        
-        return {
-            "success": True, 
-            "message": f"세션 {session_id} 대화가 초기화되었습니다.",
-            "was_active": removed is not None
-        }
+        langchain_agent_service.clear_session(userid)
+        return {"success": True, "message": f"User {userid}'s chat history has been cleared."}
     except Exception as e:
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/chat/health")
 async def chat_health_check():
-    """챗봇 헬스체크"""
-    try:
-        if openai_service:
-            openai_connected = await openai_service.test_connection()
-        else:
-            openai_connected = False
-        
-        return {
-            "status": "healthy" if openai_connected else "unhealthy",
-            "openai_connected": openai_connected,
-            "service": "chatbot",
-            "active_sessions": len(active_sessions)
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "openai_connected": False
-        }
-
-@router.get("/chat/stats")
-async def get_chat_stats():
-    """실시간 통계 (동시 접속 모니터링)"""
+    """챗봇 서비스 상태 확인"""
     return {
-        "active_sessions": len(active_sessions),
-        "sessions_detail": {
-            session_id: {
-                "start_time": session_data["start_time"].isoformat(),
-                "type": session_data["type"],
-                "duration_seconds": (datetime.now() - session_data["start_time"]).total_seconds()
-            }
-            for session_id, session_data in active_sessions.items()
-        },
-        "total_sync_sessions": len([s for s in active_sessions.values() if s["type"] == "sync"]),
-        "total_stream_sessions": len([s for s in active_sessions.values() if s["type"] == "stream"])
+        "status": "healthy" if langchain_agent_service else "unhealthy",
+        "service": "langchain_agent_chatbot",
+        "active_sessions": len(active_sessions)
     }
