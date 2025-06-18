@@ -112,8 +112,8 @@ class ChatbotAgentService:
                     }
                 }
             )
-            docs = retriever.invoke(query)
-            return [doc.dict() for doc in docs]
+            place_list = retriever.invoke(query)
+            return place_list
 
         return [elastic_search, search_with_filtering]
 
