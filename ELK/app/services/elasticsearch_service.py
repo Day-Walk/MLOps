@@ -213,7 +213,7 @@ class ElasticsearchService:
                     }
                 },
                 "sort": [
-                    {"createAt": {"order": "desc"}}
+                    {"createAt": {"order": "asc"}}
                 ]
             }
             
