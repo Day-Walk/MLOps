@@ -39,7 +39,7 @@ TEMPLATE = """
 """
 
 class ChatbotAgentService:
-    def __init__(self, chroma_db_path: str = "data/chroma_db_bge"):
+    def __init__(self, chroma_db_path: str = "/app/data/chroma_db_bge"):
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
