@@ -24,7 +24,7 @@ openai_service = OpenAIService(os.getenv("OPENAI_API_KEY"))
 place_extractor = PlaceExtractor()
 # Langchain Agent 서비스 초기화
 try:
-    chatbot_agent_service = ChatbotAgentService(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    chatbot_agent_service = ChatbotAgentService()
 except Exception as e:
     print(f"Error initializing ChatbotAgentService: {e}")
     chatbot_agent_service = None
