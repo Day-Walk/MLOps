@@ -15,7 +15,7 @@ from app.services.langchain_agent_service import LangchainAgentService
 
 router = APIRouter(prefix="/api", tags=["chatbot"])
 
-# Langchain Agent 서비스 초기화
+# Langchain Agent 서비스 초기화 
 try:
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if not openai_api_key:
@@ -66,15 +66,11 @@ async def chat_stream_endpoint(
             )
 
             # 2. 응답을 요청된 형식으로 변환
-            # agent_response: {"place_uuids": list, "course": str}
-            final_response = {
-                "placeid": agent_response.get("place_uuids", []),
-                "str1": agent_response.get("course", "추천 코스를 생성하지 못했습니다.")
-            }
+            # agent_response: {"placeid": list, "str": str}
+            final_response = json.dumps(agent_response, ensure_ascii=False)
 
             # 3. 최종 메시지 전송
-            yield f"data: {json.dumps(final_response, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
+            yield final_response
 
         except Exception as e:
             print(f"Agent 스트림 처리 오류: {e}")
@@ -82,7 +78,7 @@ async def chat_stream_endpoint(
             
             error_message = {
                 "placeid": [],
-                "str1": f"처리 중 오류가 발생했습니다: {str(e)}"
+                "str": f"처리 중 오류가 발생했습니다: {str(e)}"
             }
             yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
