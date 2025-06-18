@@ -33,24 +33,18 @@ TEMPLATE = """
 - 모든 답변은 반드시 아래 형식을 지켜주세요.
 - 코스 제작 전이라면 아래 형식으로 답변해주세요.
 {{
-  "message" : "답변",
-  "uuids" : "",
-  "course" : ""
+  "str1" : "답변",
+  "placeid" : [],
+  "str2" : ""
 }}
+
 - elastic_search와 search_with_filtering을 순서대로 사용하고 코스 제작이 완료되었다면 코스를 아래 형식으로 작성합니다.
-- 코스 :
-    1. [장소 이름] - [주소]
-    - 장소 설명
-    2. [장소 이름] - [주소]
-    - 장소 설명
-    3. [장소 이름] - [주소]
-    - 장소 설명
-- uuids : 코스로 만들어진 장소 uuid 리스트
+- placeid는 elastic_search와 search_with_filtering을 순서대로 사용하고 코스 제작이 완료되었다면 코스로 만들어진 장소 uuid 리스트입니다.
 - 아래 형식을 지켜서 작성해주세요.
 {{
-  "message" : "답변",
-  "uuids" : "uuids",
-  "course" : "코스"
+  "str1" : "답변",
+  "placeid" : [],
+  "str2" : "코스"
 }}
 """
 
@@ -178,7 +172,7 @@ class ChatbotAgentService:
         except json.JSONDecodeError:
             # If parsing fails, wrap the raw output in the specified JSON format.
             return {
-                "message": output,
-                "uuids": "",
-                "course": ""
+                "str1": output,
+                "placeid": [],
+                "str2": ""
             }
