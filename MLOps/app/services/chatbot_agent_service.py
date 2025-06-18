@@ -106,14 +106,23 @@ class ChatbotAgentService:
             retriever = self.chroma_db.as_retriever(
                 search_type="similarity",
                 search_kwargs={
-                    "k" : 100,
+                    "k" : 20,
                     "filter" : {
                         "uuid" : {"$in": uuid_list}
                     }
                 }
             )
-            place_list = retriever.invoke(query)
-            return place_list
+            docs = retriever.invoke(query)
+
+            if not docs:
+                # 필터링된 결과가 없으면 필터 없이 다시 검색
+                retriever = self.chroma_db.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": 5}
+                )
+                docs = retriever.invoke(query)
+
+            return [doc.model_dump() for doc in docs]
 
         return [elastic_search, search_with_filtering]
 
