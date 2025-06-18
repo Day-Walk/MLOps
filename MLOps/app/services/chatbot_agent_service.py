@@ -24,7 +24,6 @@ TEMPLATE = """
 - `elastic_search`를 통해 얻은 장소 목록(uuids)이 너무 많거나 사용자의 의도가 더 구체적이라면, `search_with_filtering` 도구를 사용하여 결과를 더 좁힐 수 있습니다.
 - `search_with_filtering` 도구를 사용할 때는 `query` 인자에 반드시 **사용자의 원래 입력 메시지 전체**를 사용하여 의미적으로 유사한 장소를 찾아야 합니다.
 - 항상 제공된 도구를 사용하여 정보를 검색해야 하며, 절대로 임의의 장소를 만들거나 당신의 지식에 기반해 답변해서는 안 됩니다.
-- `search_with_filtering`에서 반환된 결과에서 'metadata'의 'uuid'는 'placeid'로, 'page_content'는 'str2'의 각 장소 설명으로 사용하세요. 전체적인 설명은 'str1'에 담아주세요.
 - 사용자의 질문이 불분명하면, "어떤 지역을 원하세요?" 또는 "무엇을 하고 싶으신가요?" 와 같이 명확한 질문을 통해 필요한 정보를 얻으세요.
 
 【말투】
@@ -177,10 +176,9 @@ class ChatbotAgentService:
                 return json.loads(output)
             return output
         except json.JSONDecodeError:
-            # 만약 JSON 파싱에 실패하면, LLM이 유효한 JSON을 반환하도록 다시 시도하거나
-            # 사용자에게 오류를 알리는 메시지를 반환할 수 있습니다.
-            # 여기서는 간단히 오류 메시지를 포함한 딕셔너리를 반환합니다.
+            # If parsing fails, wrap the raw output in the specified JSON format.
             return {
-                "error": "Failed to parse LLM response as JSON.",
-                "response": output
+                "message": output,
+                "uuids": "",
+                "course": ""
             }
