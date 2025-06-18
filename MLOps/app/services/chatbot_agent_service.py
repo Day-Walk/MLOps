@@ -13,6 +13,8 @@ from langchain.memory import ConversationBufferMemory
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
+from app.schema.chat_schema import ChatResponse, normalize_agent_response
+
 
 # New Prompt Template for OpenAI Functions Agent
 TEMPLATE = """
@@ -29,23 +31,32 @@ TEMPLATE = """
 【말투】
 - 항상 따뜻하고 친근한 말투를 사용하세요. (예: "좋아요! 천천히 같이 코스를 짜볼게요 ^^", "분위기 좋은 곳 위주로 찾아볼게요.")
 
+【중요한 응답 형식 규칙】
+- **무조건 모든 응답은 정확한 JSON 형식으로만 작성해야 합니다.**
+- **다른 텍스트 없이 오직 JSON 객체만 반환하세요.**
+- **JSON 형식을 벗어나는 어떤 추가 설명이나 텍스트도 포함하지 마세요.**
+
 【최종 응답 형식】
-- 모든 답변은 반드시 아래 형식을 지켜주세요.
-- 코스 제작 전이라면 아래 형식으로 답변해주세요.
-{{
-  "str1" : "답변",
+코스 제작 전이라면 반드시 아래 형식으로만 답변하세요:
+{
+  "str1" : "답변 텍스트",
   "placeid" : [],
   "str2" : ""
-}}
+}
 
-- elastic_search와 search_with_filtering을 순서대로 사용하고 코스 제작이 완료되었다면 코스를 아래 형식으로 작성합니다.
-- placeid는 elastic_search와 search_with_filtering을 순서대로 사용하고 코스 제작이 완료되었다면 코스로 만들어진 장소 uuid 리스트입니다.
-- 아래 형식을 지켜서 작성해주세요.
-{{
-  "str1" : "답변",
-  "placeid" : [],
-  "str2" : "코스"
-}}
+elastic_search와 search_with_filtering을 순서대로 사용하고 코스 제작이 완료되었다면 반드시 아래 형식으로만 답변하세요:
+{
+  "str1" : "답변 텍스트",
+  "placeid" : ["uuid1", "uuid2", "uuid3"],
+  "str2" : "코스 설명"
+}
+
+【JSON 작성 규칙】
+1. 반드시 정확한 JSON 문법을 사용하세요
+2. 모든 문자열은 쌍따옴표("")로 감싸세요
+3. placeid는 반드시 배열 형태여야 합니다 (빈 배열 []도 가능)
+4. str1, str2는 반드시 문자열이어야 합니다
+5. JSON 외에는 어떤 텍스트도 추가하지 마세요
 """
 
 class ChatbotAgentService:
@@ -154,24 +165,8 @@ class ChatbotAgentService:
         response = agent_executor.invoke({"input": user_message})
         output = response.get("output", "죄송합니다. 답변을 생성하지 못했습니다.")
         
-        if not isinstance(output, str):
-            return output
-
-        # LLM 응답에서 JSON 객체만 추출 시도
-        try:
-            # 가장 먼저 나오는 '{'와 가장 마지막에 나오는 '}'를 찾아 JSON 추출
-            start_index = output.find('{')
-            end_index = output.rfind('}')
-            if start_index != -1 and end_index != -1:
-                json_str = output[start_index:end_index+1]
-                return json.loads(json_str)
-        except json.JSONDecodeError:
-            # JSON 추출에 실패하면 전체 출력을 메시지로 사용
-            pass
+        # 새로운 정규화 함수를 사용하여 일관된 응답 형식 보장
+        normalized_response = normalize_agent_response(output)
         
-        # JSON 파싱에 실패한 경우, LLM의 응답이 순수 텍스트라고 간주하고 포맷에 맞춰 반환
-        return {
-            "str1": output,
-            "placeid": [],
-            "str2": ""
-        }
+        # ChatResponse 객체를 딕셔너리로 변환하여 반환
+        return normalized_response.dict()
