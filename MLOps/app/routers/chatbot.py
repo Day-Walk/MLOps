@@ -156,7 +156,7 @@ async def chat_stream_endpoint(
                 error_message = {
                     "type": "error",
                     "str1": f"응답 처리 중 오류가 발생했습니다: {error_detail}",
-                    "placeid": None, "str2": None, "userid": session_id
+                    "placeid": [], "str2": "", "userid": session_id
                 }
                 yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
