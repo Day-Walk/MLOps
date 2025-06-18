@@ -63,7 +63,7 @@ class ChatbotAgentService:
 
     def _get_tools(self):
         @tool
-        def elastic_search(query: str) -> List[str]:
+        def elastic_search(region: str, categories: List[str]) -> List[str]:
             """
             사용자가 검색을 원하는 '지역(region)'과 '카테고리(categories)'를 인자로 받아,
             해당 조건에 맞는 장소들의 UUID 리스트를 반환합니다.
@@ -72,15 +72,7 @@ class ChatbotAgentService:
             - (예시 : '전시관', '기념관', '전문매장/상가', '5일장', '특산물판매점', '백화점', '상설시장', '문화전수시설', '문화원', '서양식', '건축/조형물', '음식점&카페', '박물관', '컨벤션센터', '역사관광지', '복합 레포츠', '공예/공방', '이색음식점', '영화관', '산업관광지', '중식', '문화시설', '쇼핑', '수상 레포츠', '관광지', '육상 레포츠', '학교', '관광자원', '스키(보드) 렌탈샵', '대형서점', '휴양관광지', '외국문화원', '자연관광지', '레포츠', '한식', '일식', '도서관', '체험관광지', '카페/전통찻집', '면세점', '공연장', '미술관/화랑')
 
             - 정확한 카테고리가 들어오지 않더라도 유사한 카테고리를 추출하여 인자로 받아주세요.
-            Input must be a JSON string. e.g. '{"region": "종로", "categories": ["박물관"]}'
             """
-            try:
-                params = json.loads(query)
-                region = params.get("region")
-                categories = params.get("categories")
-            except (json.JSONDecodeError, AttributeError):
-                return "Invalid input format. Please provide a JSON string with 'region' and 'categories'."
-
             if not region or not categories:
                 return "Region and categories are required."
 
