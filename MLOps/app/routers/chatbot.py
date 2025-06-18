@@ -14,7 +14,7 @@ import os
 
 from app.services.openai_service import OpenAIService
 from app.services.place_extractor import PlaceExtractor
-from app.schema.chat_schema import ChatResponse, ChatStats, AgentChatRequest
+from app.schema.chat_schema import ChatResponse, ChatStats, AgentChatRequest, normalize_agent_response
 from app.services.chatbot_agent_service import ChatbotAgentService
 
 router = APIRouter(prefix="/api", tags=["chatbot"])
@@ -50,12 +50,37 @@ async def chat_agent_endpoint(request: AgentChatRequest):
             session_id=current_session_id
         )
 
-        return JSONResponse(content={"session_id": current_session_id, "response": agent_response})
+        # 응답이 이미 딕셔너리 형태이므로 바로 사용
+        # 추가 정규화가 필요한 경우를 대비해 한 번 더 검증
+        if not isinstance(agent_response, dict):
+            agent_response = normalize_agent_response(agent_response).dict()
+        
+        # ChatResponse 형식으로 검증
+        validated_response = ChatResponse(**agent_response)
+
+        return JSONResponse(content={
+            "session_id": current_session_id, 
+            "response": validated_response.dict()
+        })
 
     except Exception as e:
         print(f"Agent chat processing error: {e}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
+        
+        # 에러 발생 시에도 일관된 형식으로 응답
+        error_response = ChatResponse(
+            str1="죄송합니다. 처리 중 오류가 발생했습니다.",
+            placeid=[],
+            str2=""
+        )
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "session_id": request.session_id or str(uuid.uuid4()),
+                "response": error_response.dict()
+            }
+        )
 
 @router.get("/chat", response_model=ChatResponse)
 async def chat_endpoint(
@@ -128,10 +153,17 @@ async def chat_stream_endpoint(
     """
     if not chatbot_agent_service:
         async def error_stream():
+            error_response = ChatResponse(
+                str1="죄송합니다. 챗봇 서비스가 준비되지 않았습니다.",
+                placeid=[],
+                str2=""
+            )
             error_message = {
                 "type": "error",
-                "str1": "죄송합니다. 챗봇 서비스가 준비되지 않았습니다.",
-                "placeid": None, "str2": None, "userid": userid
+                "str1": error_response.str1,
+                "placeid": None, 
+                "str2": error_response.str2, 
+                "userid": userid
             }
             yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
@@ -150,29 +182,19 @@ async def chat_stream_endpoint(
                 session_id=session_id
             )
 
-            # 에이전트 응답에 에러가 있는지 확인
-            if "error" in agent_response:
-                error_detail = agent_response.get("response", "에이전트가 응답을 생성하지 못했습니다.")
-                error_message = {
-                    "type": "error",
-                    "str1": f"응답 처리 중 오류가 발생했습니다: {error_detail}",
-                    "placeid": [], "str2": "", "userid": session_id
-                }
-                yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
-                yield "data: [DONE]\n\n"
-                return
-
-            # 2. 결과 추출 (수정)
-            final_text = agent_response.get("str1", "")
-            place_ids = agent_response.get("placeid", [])
-            str2_text = agent_response.get("str2")
+            # 2. 응답 정규화 및 검증
+            if not isinstance(agent_response, dict):
+                agent_response = normalize_agent_response(agent_response).dict()
             
-            # 3. 최종 메시지 포맷팅 및 전송 (수정)
+            # ChatResponse 형식으로 검증
+            validated_response = ChatResponse(**agent_response)
+            
+            # 3. 최종 메시지 포맷팅 및 전송
             final_message = {
                 "type": "complete",
-                "str1": final_text,
-                "placeid": place_ids if place_ids else None,
-                "str2": str2_text,
+                "str1": validated_response.str1,
+                "placeid": validated_response.placeid if validated_response.placeid else None,
+                "str2": validated_response.str2,
                 "userid": session_id,
                 "timestamp": datetime.now().isoformat()
             }
@@ -182,10 +204,20 @@ async def chat_stream_endpoint(
         except Exception as e:
             print(f"Agent 스트림 처리 오류: {e}")
             traceback.print_exc()
+            
+            # 에러 발생 시에도 일관된 형식으로 응답
+            error_response = ChatResponse(
+                str1=f"처리 중 오류가 발생했습니다: {str(e)}",
+                placeid=[],
+                str2=""
+            )
+            
             error_message = {
                 "type": "error",
-                "str1": f"처리 중 오류가 발생했습니다: {str(e)}",
-                "placeid": None, "str2": None, "userid": session_id
+                "str1": error_response.str1,
+                "placeid": None, 
+                "str2": error_response.str2, 
+                "userid": session_id
             }
             yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
