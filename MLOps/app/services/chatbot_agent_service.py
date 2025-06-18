@@ -3,6 +3,7 @@ import requests
 import json
 from urllib.parse import quote
 from typing import Union, List, Dict
+import chromadb
 
 from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -10,7 +11,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 
 
 # New Prompt Template for OpenAI Functions Agent
@@ -53,9 +54,14 @@ class ChatbotAgentService:
             encode_kwargs={'normalize_embeddings': True}
         )
         
+        client_settings = chromadb.Settings(
+            is_persistent=True,
+            persist_directory=chroma_db_path,
+        )
         self.chroma_db = Chroma(
             persist_directory=chroma_db_path,
-            embedding_function=self.embedding_function
+            embedding_function=self.embedding_function,
+            client_settings=client_settings
         )
         
         self.tools = self._get_tools()
