@@ -24,18 +24,33 @@ TEMPLATE = """
 - `elastic_search`를 통해 얻은 장소 목록(uuids)이 너무 많거나 사용자의 의도가 더 구체적이라면, `search_with_filtering` 도구를 사용하여 결과를 더 좁힐 수 있습니다.
 - `search_with_filtering` 도구를 사용할 때는 `query` 인자에 반드시 **사용자의 원래 입력 메시지 전체**를 사용하여 의미적으로 유사한 장소를 찾아야 합니다.
 - 항상 제공된 도구를 사용하여 정보를 검색해야 하며, 절대로 임의의 장소를 만들거나 당신의 지식에 기반해 답변해서는 안 됩니다.
-- `search_with_filtering`에서 반환된 결과에서 'metadata'의 'uuid'는 'placeid'로, 'page_content'는 'str2'의 각 장소 설명으로 사용하세요. 전체적인 설명은 'str1'에 담아주세요.
 - 사용자의 질문이 불분명하면, "어떤 지역을 원하세요?" 또는 "무엇을 하고 싶으신가요?" 와 같이 명확한 질문을 통해 필요한 정보를 얻으세요.
 
 【말투】
 - 항상 따뜻하고 친근한 말투를 사용하세요. (예: "좋아요! 천천히 같이 코스를 짜볼게요 ^^", "분위기 좋은 곳 위주로 찾아볼게요.")
 
 【최종 응답 형식】
-- 충분한 정보가 수집되어 최종적으로 코스를 추천할 때는, 반드시 아래와 같은 JSON 형식으로만 응답해야 합니다. 다른 말은 섞지 마세요.
+- 모든 답변은 반드시 아래 형식을 지켜주세요.
+- 코스 제작 전이라면 아래 형식으로 답변해주세요.
 {{
-    "str1" : "코스에 대한 전체적인 설명",
-    "placeid" : ["placeid1", "placeid2", ...],
-    "str2" : "각 장소에 대한 설명"
+  "message" : "답변",
+  "uuids" : "",
+  "course" : ""
+}}
+- elastic_search와 search_with_filtering을 순서대로 사용하고 코스 제작이 완료되었다면 코스를 아래 형식으로 작성합니다.
+- 코스 :
+    1. [장소 이름] - [주소]
+    - 장소 설명
+    2. [장소 이름] - [주소]
+    - 장소 설명
+    3. [장소 이름] - [주소]
+    - 장소 설명
+- uuids : 코스로 만들어진 장소 uuid 리스트
+- 아래 형식을 지켜서 작성해주세요.
+{{
+  "message" : "답변",
+  "uuids" : "uuids",
+  "course" : "코스"
 }}
 """
 
@@ -161,10 +176,9 @@ class ChatbotAgentService:
                 return json.loads(output)
             return output
         except json.JSONDecodeError:
-            # 만약 JSON 파싱에 실패하면, LLM이 유효한 JSON을 반환하도록 다시 시도하거나
-            # 사용자에게 오류를 알리는 메시지를 반환할 수 있습니다.
-            # 여기서는 간단히 오류 메시지를 포함한 딕셔너리를 반환합니다.
+            # If parsing fails, wrap the raw output in the specified JSON format.
             return {
-                "error": "Failed to parse LLM response as JSON.",
-                "response": output
+                "message": output,
+                "uuids": "",
+                "course": ""
             }
