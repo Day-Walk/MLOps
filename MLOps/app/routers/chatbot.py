@@ -149,17 +149,30 @@ async def chat_stream_endpoint(
                 user_message=message,
                 session_id=session_id
             )
+
+            # 에이전트 응답에 에러가 있는지 확인
+            if "error" in agent_response:
+                error_detail = agent_response.get("response", "에이전트가 응답을 생성하지 못했습니다.")
+                error_message = {
+                    "type": "error",
+                    "str1": f"응답 처리 중 오류가 발생했습니다: {error_detail}",
+                    "placeid": None, "str2": None, "userid": session_id
+                }
+                yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+
+            # 2. 결과 추출 (수정)
+            final_text = agent_response.get("str1", "")
+            place_ids = agent_response.get("placeid", [])
+            str2_text = agent_response.get("str2")
             
-            # 2. 결과 추출
-            final_text = agent_response.get("final_answer", "")
-            place_ids = agent_response.get("place_uuids", [])
-            
-            # 3. 최종 메시지 포맷팅 및 전송
+            # 3. 최종 메시지 포맷팅 및 전송 (수정)
             final_message = {
                 "type": "complete",
                 "str1": final_text,
                 "placeid": place_ids if place_ids else None,
-                "str2": None,
+                "str2": str2_text,
                 "userid": session_id,
                 "timestamp": datetime.now().isoformat()
             }
