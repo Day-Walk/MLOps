@@ -29,19 +29,15 @@ class DatabaseService:
         except Error as e:
             print(f"커넥션 풀 생성 오류: {e}")
 
-    def _get_connection(self, timeout=3):
-        """풀에서 커넥션을 가져옵니다. 타임아웃을 적용하여 무한 대기를 방지합니다."""
+    def _get_connection(self):
+        """풀에서 커넥션을 가져옵니다."""
         if not self.pool:
             print("커넥션 풀을 사용할 수 없습니다.")
             return None
         try:
-            # 타임아웃(초)을 설정하여 커넥션을 기다립니다.
-            return self.pool.get_connection(timeout=timeout)
-        except pooling.PoolError as e:
-            print(f"풀에서 커넥션을 가져오는 데 실패했습니다 (타임아웃 또는 풀 문제): {e}")
-            return None
+            return self.pool.get_connection()
         except Error as e:
-            print(f"커넥션 가져오는 중 알 수 없는 오류 발생: {e}")
+            print(f"커넥션 풀에서 연결을 가져오는 중 오류 발생: {e}")
             return None
 
     def execute_query(self, query, params=None):
