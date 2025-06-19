@@ -1,11 +1,12 @@
 import pandas as pd
 from typing import Dict
+import os
 
 class UserDataService:
     """사용자 데이터 관리 서비스"""
     
     def __init__(self):
-        self.data_path = "/app/data/final_click_log.csv"
+        self.data_path = os.environ.get("CLICK_LOG", "")
         self.user_data = pd.read_csv(self.data_path)
         
     def get_user_info(self, userid: str) -> Dict:
