@@ -19,16 +19,23 @@ jobs:
       uses: appleboy/ssh-action@v1.0.0
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        CLICK_LOG: ${{ secrets.CLICK_LOG }}
+        DEEPFM_TRAIN_MODEL_PATH: ${{ secrets.DEEPFM_TRAIN_MODEL_PATH }}
+        DEEPFM_TRAIN_ENCODERS_PATH: ${{ secrets.DEEPFM_TRAIN_ENCODERS_PATH }}
+        DEEPFM_TRAIN_KEY2INDEX_PATH: ${{ secrets.DEEPFM_TRAIN_KEY2INDEX_PATH }}
       with:
         host: ${{ secrets.EC2_HOST_ML }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         port: 22
-        envs: OPENAI_API_KEY
+        envs: OPENAI_API_KEY CLICK_LOG DEEPFM_TRAIN_MODEL_PATH DEEPFM_TRAIN_ENCODERS_PATH DEEPFM_TRAIN_KEY2INDEX_PATH
         script: |
           export OPENAI_API_KEY=$OPENAI_API_KEY
-          echo "OPENAI_API_KEY is $OPENAI_API_KEY"
-
+          export CLICK_LOG=$CLICK_LOG
+          export DEEPFM_TRAIN_MODEL_PATH=$DEEPFM_TRAIN_MODEL_PATH
+          export DEEPFM_TRAIN_ENCODERS_PATH=$DEEPFM_TRAIN_ENCODERS_PATH
+          export DEEPFM_TRAIN_KEY2INDEX_PATH=$DEEPFM_TRAIN_KEY2INDEX_PATH
+          
           # 프로젝트 디렉터리로 이동
           cd ~/MLOps
           

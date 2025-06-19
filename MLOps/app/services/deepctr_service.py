@@ -4,12 +4,13 @@ from app.model.deepfm_train import DeepFMModdelTrain
 from app.services.elk_client import ELKClient
 from app.services.user_data_service import UserDataService
 import pandas as pd
+import os
 
 class DeepCTRService:
     """DeepCTR 모델 서비스"""
     
     def __init__(self):
-        self.model = DeepFMModdelTrain("/app/data/final_click_log.csv")
+        self.model = DeepFMModdelTrain(os.environ.get("CLICK_LOG", ""))
         self.elk_client = ELKClient()
         self.user_data_service = UserDataService()
         

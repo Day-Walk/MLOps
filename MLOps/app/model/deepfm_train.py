@@ -22,9 +22,9 @@ class DeepFMModdelTrain:
         self.feature_names = None
         self.model_input = None
         self.target = "yn"        
-        self.model_path = "/app/app/model/deepfm_model.pt"
-        self.encoders_path = "/app/app/model/label_encoders.pkl"
-        self.key2index_path = "/app/app/model/key2index.pkl"
+        self.model_path = os.environ.get("DEEPFM_TRAIN_MODEL_PATH", "")
+        self.encoders_path = os.environ.get("DEEPFM_TRAIN_ENCODERS_PATH", "")
+        self.key2index_path = os.environ.get("DEEPFM_TRAIN_KEY2INDEX_PATH", "")
         self.model = None
         self.max_len = None
         self.label_encoders = {}
@@ -177,7 +177,7 @@ class DeepFMModdelTrain:
         return model.predict(model_input)
     
 if __name__ == "__main__":
-    deepfm_train = DeepFMModdelTrain("../data/final_click_log.csv")
+    deepfm_train = DeepFMModdelTrain(os.environ.get("CLICK_LOG", ""))
     deepfm_train.preprocess()
     model = deepfm_train.train()
     # 예시 데이터
