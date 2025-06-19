@@ -66,8 +66,9 @@ async def chat_stream_endpoint(
             # agent_response: {"placeid": list, "str": str}
             final_response = json.dumps(agent_response, ensure_ascii=False)
 
-            # 3. 최종 메시지 전송
-            yield final_response
+            # 3. 최종 메시지를 SSE 형식으로 전송
+            yield f"data: {final_response}"
+            yield "data: [DONE]"
 
         except Exception as e:
             print(f"Agent 스트림 처리 오류: {e}")
@@ -77,8 +78,8 @@ async def chat_stream_endpoint(
                 "placeid": [],
                 "str": f"처리 중 오류가 발생했습니다: {str(e)}"
             }
-            yield f"data: {json.dumps(error_message, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
+            yield f"data: {json.dumps(error_message, ensure_ascii=False)}"
+            yield "data: [DONE]"
         
         finally:
             active_sessions.pop(session_id, None)
