@@ -33,12 +33,14 @@ jobs:
           cd ~/MLOps
           
           # 최신 코드 받기
+          git checkout main
+          git fetch origin main
           git pull origin main
           
           # dvc s3 연결
           dvc remote modify --local storage access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
           dvc remote modify --local storage secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          dvc pull
+          dvc pull --force
 
           # MLOps 디렉터리로 이동
           cd MLOps
