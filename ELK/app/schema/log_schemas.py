@@ -15,7 +15,6 @@ class Place(BaseModel):
     location: Location
 
 class Answer(BaseModel):
-    title: str
     placeList: List[Place]
     detail: str
 
@@ -29,7 +28,6 @@ class LogResponse(BaseModel):
     isSuccess: bool
     message: str
 
-# 클릭 로그 스키마 추가
 class ClickLogRequest(BaseModel):
     userId: str  # UUID 형식
     placeId: str  # UUID 형식
