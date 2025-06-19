@@ -78,7 +78,7 @@ class LangchainAgentService:
         )
         
         # ChromaDB 로드
-        chroma_db_path = "/app/data/chroma_db_bge"
+        chroma_db_path = "/home/ubuntu/MLOps/data/chroma_db_bge"
         if not os.path.exists(chroma_db_path):
             raise FileNotFoundError(f"ChromaDB 경로를 찾을 수 없습니다: {chroma_db_path}")
         self.chroma_bge = Chroma(
