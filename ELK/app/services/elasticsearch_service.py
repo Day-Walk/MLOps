@@ -1,5 +1,5 @@
 from elasticsearch import Elasticsearch
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
 
 
@@ -10,6 +10,7 @@ class ElasticsearchService:
         self.es = Elasticsearch([{'host': host, 'port': port, 'scheme': 'http'}])
         self.index_name = "place_data"
         self.log_index_name = "chatbot_log"
+        self.click_log_index_name = "click_log"
         
     def is_connected(self) -> bool:
         """연결 상태 확인"""
@@ -18,7 +19,7 @@ class ElasticsearchService:
         except:
             return False
 
-    def search_places(self, query: str, max_results: int = 23) -> List[str]:
+    def search_places(self, query: str, max_results: int = 23) -> List[Dict[str, Any]]:
         """장소 검색"""
         search_body = {
             "query": {
@@ -222,3 +223,89 @@ class ElasticsearchService:
         except Exception as e:
             print(f"로그 검색 오류: {e}")
             return []
+
+    def create_click_log_index_if_not_exists(self):
+        """클릭 로그 인덱스가 없으면 생성"""
+        try:
+            if not self.es.indices.exists(index=self.click_log_index_name):
+                # 클릭 로그 인덱스 매핑 설정
+                mapping = {
+                    "mappings": {
+                        "properties": {
+                            "userId": {"type": "keyword"},
+                            "placeId": {"type": "keyword"},
+                            "timestamp": {"type": "date"}
+                        }
+                    }
+                }
+                self.es.indices.create(index=self.click_log_index_name, body=mapping)
+                print(f"클릭 로그 인덱스 '{self.click_log_index_name}' 생성 완료")
+        except Exception as e:
+            raise Exception(f"클릭 로그 인덱스 생성 오류: {e}")
+
+    def insert_click_log(self, log_data: dict) -> Tuple[bool, Optional[str]]:
+        """클릭 로그 데이터를 Elasticsearch에 삽입"""
+        try:
+            # 문서 ID 생성 (타임스탬프 + userId + placeId 조합)
+            doc_id = f"{log_data['userId']}_{log_data['placeId']}_{int(datetime.now().timestamp())}"
+            
+            # Elasticsearch에 문서 삽입
+            response = self.es.index(
+                index=self.click_log_index_name,
+                id=doc_id,
+                body=log_data
+            )
+            
+            # 삽입 성공 여부 확인
+            if response.get('result') in ['created', 'updated']:
+                return True, doc_id
+            else:
+                return False, None
+                
+        except Exception as e:
+            print(f"클릭 로그 삽입 오류: {e}")
+            return False, None
+
+    def get_click_logs_by_user(self, user_id: str, days: int = 30) -> List[Dict]:
+        """사용자의 클릭 로그 조회"""
+        try:
+            query = {
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {"term": {"userId": user_id}},
+                            {
+                                "range": {
+                                    "timestamp": {
+                                        "gte": f"now-{days}d/d"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "sort": [
+                    {"timestamp": {"order": "desc"}}
+                ]
+            }
+            
+            response = self.es.search(index=self.click_log_index_name, body=query)
+            return [hit["_source"] for hit in response["hits"]["hits"]]
+        except Exception as e:
+            print(f"클릭 로그 검색 오류: {e}")
+            return []
+
+    def get_click_count_by_place(self, place_id: str) -> int:
+        """특정 장소의 클릭 수 조회"""
+        try:
+            query = {
+                "query": {
+                    "term": {"placeId": place_id}
+                }
+            }
+            
+            response = self.es.count(index=self.click_log_index_name, body=query)
+            return response.get('count', 0)
+        except Exception as e:
+            print(f"클릭 수 조회 오류: {e}")
+            return 0

@@ -28,3 +28,13 @@ class LogRequest(BaseModel):
 class LogResponse(BaseModel):
     isSuccess: bool
     message: str
+
+# 클릭 로그 스키마 추가
+class ClickLogRequest(BaseModel):
+    userId: str  # UUID 형식
+    placeId: str  # UUID 형식
+    timestamp: datetime
+
+class ClickLogResponse(BaseModel):
+    success: bool
+    message: str
