@@ -7,9 +7,20 @@ from sklearn.metrics import log_loss, roc_auc_score
 from deepctr_torch.models import DeepFM
 from deepctr_torch.inputs import SparseFeat, VarLenSparseFeat, get_feature_names
 import ast
-from tensorflow.keras.preprocessing.sequence import pad_sequences
 import os
 import pickle
+
+def pad_sequences(sequences, maxlen, padding='post', value=0):
+    """
+    NumPy를 이용한 pad_sequences의 간단한 구현
+    """
+    padded = np.full((len(sequences), maxlen), value, dtype=np.int32)
+    for i, seq in enumerate(sequences):
+        if padding == 'post':
+            padded[i, :len(seq)] = seq[:maxlen]
+        else:  # 'pre' padding
+            padded[i, -len(seq):] = seq[-maxlen:]
+    return padded
 
 class DeepFMModdelTrain:
     def __init__(self, data_path):
@@ -22,9 +33,9 @@ class DeepFMModdelTrain:
         self.feature_names = None
         self.model_input = None
         self.target = "yn"        
-        self.model_path = "/app/app/model/deepfm_model.pt"
-        self.encoders_path = "/app/app/model/label_encoders.pkl"
-        self.key2index_path = "/app/app/model/key2index.pkl"
+        self.model_path = os.environ.get("DEEPFM_TRAIN_MODEL_PATH", "")
+        self.encoders_path = os.environ.get("DEEPFM_TRAIN_ENCODERS_PATH", "")
+        self.key2index_path = os.environ.get("DEEPFM_TRAIN_KEY2INDEX_PATH", "")
         self.model = None
         self.max_len = None
         self.label_encoders = {}
@@ -57,16 +68,16 @@ class DeepFMModdelTrain:
         self.data[self.sequence_feature] = pad_sequences(self.data[self.sequence_feature], maxlen=self.max_len, padding='post', value=0)
         
         # 최종 feature 생성
-        self.sparse_features = [SparseFeat(feature, 
+        sparse_feature_columns = [SparseFeat(feature, 
                                            vocabulary_size=self.data[feature].nunique(), 
                                            embedding_dim=4) for feature in sparse_feature_names]
         
-        self.sequence_feature = [VarLenSparseFeat(SparseFeat(self.sequence_feature, 
+        sequence_feature_columns = [VarLenSparseFeat(SparseFeat(self.sequence_feature, 
                                                              vocabulary_size=len(self.key2index) + 1, 
                                                              embedding_dim=4), maxlen=self.max_len, combiner="mean")]
         
-        self.linear_feature_columns = self.sparse_features + self.sequence_feature
-        self.dnn_feature_columns = self.sparse_features + self.sequence_feature
+        self.linear_feature_columns = sparse_feature_columns + sequence_feature_columns
+        self.dnn_feature_columns = sparse_feature_columns + sequence_feature_columns
         
         self.feature_names = get_feature_names(self.linear_feature_columns + self.dnn_feature_columns)
         
@@ -78,13 +89,13 @@ class DeepFMModdelTrain:
         with open(self.encoders_path, 'wb') as f:
             pickle.dump(self.label_encoders, f)
         with open(self.key2index_path, 'wb') as f:
-            pickle.dump(self.key2index, f)
+            pickle.dump({'key2index': self.key2index, 'max_len': self.max_len}, f)
         
     def train(self):
         model = DeepFM(self.linear_feature_columns, 
                        self.dnn_feature_columns, 
                        task="regression",
-                       device=self.device)
+                       device=str(self.device))
         
         model.compile("adam", "mse", metrics=["mse"])
         
@@ -106,11 +117,14 @@ class DeepFMModdelTrain:
         with open(self.encoders_path, 'rb') as f:
             self.label_encoders = pickle.load(f)
         with open(self.key2index_path, 'rb') as f:
-            self.key2index = pickle.load(f)
-
-        # 예측에 필요한 메타데이터 재구성
-        temp_like_list = self.data[self.sequence_feature].apply(ast.literal_eval)
-        self.max_len = max(len(x) for x in temp_like_list)
+            key2index_data = pickle.load(f)
+            if isinstance(key2index_data, dict) and 'key2index' in key2index_data:
+                self.key2index = key2index_data['key2index']
+                self.max_len = key2index_data['max_len']
+            else:
+                # 이전 버전 호환성
+                self.key2index = key2index_data
+                self.max_len = 50  # 기본값
 
         sparse_feature_names = ["userid", "name", "age", "gender", "place_id", "place_name", "category", "subcategory"]
         
@@ -170,14 +184,14 @@ class DeepFMModdelTrain:
         model = DeepFM(self.linear_feature_columns, 
                        self.dnn_feature_columns, 
                        task="regression",
-                       device=self.device)
+                       device=str(self.device))
         model.load_state_dict(torch.load(self.model_path))
         model.compile("adam", "mse", metrics=["mse"])
         
         return model.predict(model_input)
     
 if __name__ == "__main__":
-    deepfm_train = DeepFMModdelTrain("../data/final_click_log.csv")
+    deepfm_train = DeepFMModdelTrain(os.environ.get("CLICK_LOG", ""))
     deepfm_train.preprocess()
     model = deepfm_train.train()
     # 예시 데이터
