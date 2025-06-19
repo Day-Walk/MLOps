@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 
 # 라우터 임포트
-from app.routers import recommendation, chatbot
+from app.routers import recommendation, chatbot, crowd
 
 # 환경 변수 설정
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -47,6 +47,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # 라우터 등록
 app.include_router(recommendation.router)
 app.include_router(chatbot.router)
+app.include_router(crowd.router)
 
 @app.get("/")
 async def root():
@@ -68,7 +69,7 @@ async def root():
                     "stats": "/api/chat/stats"
                 },
                 "description": "OpenAI GPT 기반 데이트 코스 추천 챗봇",
-                "status": "active" if hasattr(chatbot, 'openai_service') else "inactive"
+                "status": "active" if hasattr(chatbot, 'langchain_agent_service') else "inactive"
             }
         },
         "documentation": "/docs"
@@ -84,7 +85,7 @@ async def health_check():
     
     # 챗봇 상태 확인
     chatbot_status = "inactive"
-    if hasattr(chatbot, 'openai_service') and chatbot.openai_service:
+    if hasattr(chatbot, 'langchain_agent_service') and chatbot.langchain_agent_service:
         chatbot_status = "active"
     
     # 전체 상태 결정
@@ -112,7 +113,7 @@ async def get_overall_stats():
                 "type": "ELK + DeepCTR"
             },
             "chatbot": {
-                "status": "active" if hasattr(chatbot, 'openai_service') else "inactive",
+                "status": "active" if hasattr(chatbot, 'langchain_agent_service') else "inactive",
                 "type": "OpenAI GPT",
                 "active_sessions": len(getattr(chatbot, 'active_sessions', {}))
             }
