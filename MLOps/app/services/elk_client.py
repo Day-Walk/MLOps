@@ -1,5 +1,6 @@
 import requests
 from typing import List, Dict, Any
+import pandas as pd
 
 class ELKClient:
     """ELK 서버 클라이언트"""
@@ -27,3 +28,21 @@ class ELKClient:
         except Exception as e:
             print(f"ELK 서버 호출 실패: {e}")
             return []
+
+    def load_user_click_log(self, user_id: str, days: int = 30):
+        """유저 데이터 로드"""
+        try:
+            response = requests.get(
+                f"{self.elk_url}/api/click-log/user/{user_id}",
+                params={'days': days}
+            )
+            
+            if response.status_code == 200:
+                df = pd.DataFrame(response.json().get("logs", []))
+                df.columns = df.columns.str.lower()
+                return df
+            else:
+                return None
+        except Exception as e:
+            print(f"ELK 서버 호출 실패: {e}")
+            return None
