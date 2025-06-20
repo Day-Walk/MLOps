@@ -70,6 +70,11 @@ async def root():
                 },
                 "description": "OpenAI GPT 기반 데이트 코스 추천 챗봇",
                 "status": "active" if hasattr(chatbot, 'langchain_agent_service') else "inactive"
+            },
+            "crowd": {
+                "endpoint": "/api/crowd",
+                "description": "혼잡도 예측 API",
+                "status": "active"
             }
         },
         "documentation": "/docs"
@@ -116,11 +121,16 @@ async def get_overall_stats():
                 "status": "active" if hasattr(chatbot, 'langchain_agent_service') else "inactive",
                 "type": "OpenAI GPT",
                 "active_sessions": len(getattr(chatbot, 'active_sessions', {}))
+            },
+            "crowd": {
+                "status": "active",
+                "type": "Congestion Prediction"
             }
         },
         "endpoints": {
             "recommendation": ["/api/recommend", "/api/recommend/health"],
-            "chatbot": ["/api/chat", "/api/chat/stream", "/api/chat/stats", "/api/chat/health"]
+            "chatbot": ["/api/chat", "/api/chat/stream", "/api/chat/stats", "/api/chat/health"],
+            "crowd": ["/api/crowd"]
         },
         "timestamp": datetime.now().isoformat()
     }
