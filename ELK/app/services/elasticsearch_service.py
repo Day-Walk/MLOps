@@ -74,7 +74,7 @@ class ElasticsearchService:
                     "filter": []
                 }
             },
-            "size": 10000,
+            "size": 100,
             "_source": ["uuid"],
             "track_total_hits": True
         }
@@ -351,7 +351,7 @@ class ElasticsearchService:
             print(f"사용자 클릭 로그 조회 오류: {e}")
             return []
 
-    def get_search_click_data_for_user(self, user_id: str) -> pd.DataFrame:
+    def get_search_click_data_for_user(self, user_id: str) -> List[Dict[str, Any]]:
         """사용자 검색 및 클릭 데이터를 기반으로 학습 데이터 생성"""
         
         def _ensure_utc_aware(dt_str: str) -> datetime:
@@ -366,7 +366,7 @@ class ElasticsearchService:
         click_logs = self.get_all_click_logs_by_user(user_id)
 
         if not search_logs:
-            return pd.DataFrame()
+            return []
 
         training_data = []
         click_iterator = iter(click_logs)
@@ -401,7 +401,4 @@ class ElasticsearchService:
                     "yn": 1 if place_id in clicked_in_window else 0
                 })
 
-        if not training_data:
-            return pd.DataFrame()
-
-        return pd.DataFrame(training_data)
+        return training_data
