@@ -1,7 +1,8 @@
 import os
 import json
-import requests
+import httpx
 import re
+import threading
 from urllib.parse import quote
 from typing import List, Dict, Any
 import functools
@@ -11,7 +12,7 @@ from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain.callbacks import StdOutCallbackHandler
 from langchain_openai import ChatOpenAI
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationSummaryBufferMemory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_community.vectorstores import Chroma
@@ -20,31 +21,8 @@ from langchain.cache import InMemoryCache
 
 load_dotenv()
 
-@functools.lru_cache(maxsize=100)
-def _elastic_search_cached(region: str, categories: tuple) -> list:
-    """Cached implementation for Elasticsearch search."""
-    if not region or not categories:
-        return []
-
-    print(f"--- (Cache Miss) 엘라스틱 검색: region={region}, categories={categories} ---")
-
-    region_encoded = quote(region)
-    category_encoded = '&'.join([f"categories={quote(cat)}" for cat in categories])
-    url = f"http://15.164.50.188:9201/api/place/search/llm-tool?region={region_encoded}&{category_encoded}"
-
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        response_json = response.json()
-        uuid_list = response_json.get('uuids', [])
-        print(f"--- 엘라스틱 검색 결과: {len(uuid_list)}개 장소 ---")
-        return uuid_list
-    except requests.exceptions.RequestException as e:
-        print(f"엘라스틱 검색 API 호출 오류: {e}")
-        return []
-
 @tool
-def elastic_search(region: str, categories: List[str]) -> list:
+async def elastic_search(region: str, categories: List[str]) -> list:
     """
     엘라스틱 검색 도구
 
@@ -53,9 +31,8 @@ def elastic_search(region: str, categories: List[str]) -> list:
 
     Args:
         region (str): 사용자가 명시한 지역명 (예: '강남', '홍대', '성수동', '이태원로', '잠실역')
-        categories (list of str): 검색할 장소 카테고리 목록입니다. (예: ['한식', '카페/전통찻집']). 
+        categories (list of str): 검색할 장소 카테고리 목록입니다.
         사용 가능한 전체 카테고리: '전시관', '기념관', '전문매장/상가', '5일장', '특산물판매점', '백화점', '상설시장', '문화전수시설', '문화원', '서양식', '건축/조형물', '음식점&카페', '박물관', '컨벤션센터', '역사관광지', '복합 레포츠', '공예/공방', '이색음식점', '영화관', '산업관광지', '중식', '문화시설', '쇼핑', '수상 레포츠', '관광지', '육상 레포츠', '학교', '관광자원', '스키(보드) 렌탈샵', '대형서점', '휴양관광지', '외국문화원', '자연관광지', '레포츠', '한식', '일식', '도서관', '체험관광지', '카페/전통찻집', '면세점', '공연장', '미술관/화랑'
-
     Returns:
         list: 조건에 부합하는 장소의 UUID 리스트 (예: ['uuid1', 'uuid2', ...])
 
@@ -63,14 +40,35 @@ def elastic_search(region: str, categories: List[str]) -> list:
         >>> elastic_search('종로', ['음식점&카페', '문화시설'])
         ['a1b2c3', 'd4e5f6']
     """
-    return _elastic_search_cached(region, tuple(sorted(categories)))
+    if not region or not categories:
+        return []
+
+    print(f"--- 엘라스틱 검색: region={region}, categories={tuple(sorted(categories))} ---")
+
+    region_encoded = quote(region)
+    category_encoded = '&'.join([f"categories={quote(cat)}" for cat in categories])
+    url = f"http://15.164.50.188:9201/api/place/search/llm-tool?region={region_encoded}&{category_encoded}"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=10)
+        response.raise_for_status()
+        response_json = response.json()
+        uuid_list = response_json.get('uuids', [])
+        print(f"--- 엘라스틱 검색 결과: {len(uuid_list)}개 장소 ---")
+        return uuid_list
+    except httpx.RequestError as e:
+        print(f"엘라스틱 검색 API 호출 오류: {e}")
+        return []
+
 
 class LangchainAgentService:
     def __init__(self, openai_api_key: str):
         if not openai_api_key:
             raise ValueError("OpenAI API 키가 필요합니다.")
         os.environ["OPENAI_API_KEY"] = openai_api_key
-        set_llm_cache(InMemoryCache())
+        # set_llm_cache(InMemoryCache()) # 토큰 사용량 측정을 위해 캐시 비활성화
+        
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         
         # 임베딩 모델 초기화
@@ -93,22 +91,17 @@ class LangchainAgentService:
         self.tools = [elastic_search, self._create_search_with_filtering_tool()]
         self.prompt = self._create_prompt_template()
         self.user_memories = {}
+        self._lock = threading.Lock()
 
     def get_cache_info(self):
-        """`elastic_search` 도구의 캐시 정보를 반환합니다."""
-        info = _elastic_search_cached.cache_info()
-        return {
-            "hits": info.hits,
-            "misses": info.misses,
-            "maxsize": info.maxsize,
-            "current_size": info.currsize
-        }
+        """캐시 정보를 반환합니다. (현재 비활성화)"""
+        return {"status": "caching is disabled for async implementation"}
 
     def _create_search_with_filtering_tool(self):
         @tool
-        def search_with_filtering(query: str, place_uuids: List[str]) -> List[Dict[str, Any]]:
+        async def search_with_filtering(query: str, place_uuids: List[str]) -> List[Dict[str, Any]]:
             """
-                임베딩 검색 도구
+            임베딩 검색 도구
 
                 입력받은 UUID 리스트와 사용자의 쿼리문(query)을 기반으로,
                 메타데이터 필터링 및 임베딩 유사도 검색을 수행하여 관련 장소 정보를 반환합니다.
@@ -136,7 +129,7 @@ class LangchainAgentService:
                     "filter": {"uuid": {"$in": place_uuids}}
                 }
             )
-            documents = retriever.invoke(query)
+            documents = await retriever.ainvoke(query)
             return [doc.metadata for doc in documents]
 
         return search_with_filtering
@@ -167,9 +160,9 @@ class LangchainAgentService:
             *   이 경우, `placeid`는 항상 빈 리스트 `[]`입니다.
         - **3. 성공 시 코스 추천**:
             *   도구 검색에 성공하면, `placeid`에는 추천 장소들의 UUID를, `str` 필드에는 [str 필드 작성 규칙]에 따라 생성된 추천 코스 설명을 담아 JSON을 출력합니다.
-            *   사용자가 할 일에 대해서, 각각 하나의 장소만을 추천해서 코스를 구성합니다.
+            *   사용자가 할 일에 대해서, 각각 하나의 장소만을 추천해서 코스를 구성합니다. 예를 들어서, 사용자가 카페와 쇼핑을 하고 싶다면 카페 카테고리에서 하나를 추천하고, 쇼핑 카테고리에서 하나를 추천합니다.
             *   반드시 `placeid` 배열에 포함된 `UUID`와 `str` 필드에서 설명하는 장소가 정확히 일치해야 합니다.
-            *   예를 들어서, 사용자가 카페를 원하면 카페 카테고리에서 하나를 추천하고, 전시관을 원하면 전시관 카테고리에서 하나를 추천합니다.
+            *   반드시 카테고리 별로 하나씩만 추천합니다.
         - **4. 코스 수정 요청**:
             *   사용자가 코스 수정을 요청하면 장소 후보를 몇 군데 제시한 후 고르도록 하세요.
             *   이 경우, `placeid`는 항상 빈 리스트 `[]`입니다.
@@ -185,9 +178,7 @@ class LangchainAgentService:
         - 코스 추천의 시작은 즐거운 소개 문구로 시작합니다.
         - 각 장소 정보는 반드시 search_with_filtering 도구로 검색된 결과에서만 가져와서 이름 - 주소 - 설명 형식으로 작성합니다.
         - 장소는 항상 번호로 구분하세요. 이 순서는 사용자가 원하는 순서를 따라야 합니다. (예시: 1. 상호명 - 주소<n>장소에 대한 설명)
-        - 줄 바꿈은 `<n>`으로 표시하고, 단락 구분은 반드시 `<br>` 하나만 사용합니다.
-        - **중요**: `<br>` 태그는 절대로 연속으로 사용하지 마세요. `<br><br>`가 아닌 `<br>` 하나만 사용해야 합니다.
-        - 주소와 설명 사이는 `<n>`으로 구분하고, 장소와 장소 사이는 반드시 `<br>` 하나로만 구분합니다.
+        - 주소와 설명 사이는 `<n>`으로 구분하고, 장소와 장소 사이는 반드시 `<br>` 하나로만 구분합니다. 예를 들어서, 1. 상호명 - 주소<n>장소에 대한 설명<br>2. 상호명 - 주소<n>장소에 대한 설명<br>3. 상호명 - 주소<n>장소에 대한 설명<br> 이런 식으로 구분합니다.
         - `<n>`과 `<br>` 외의 마크다운은 사용하지 않습니다.
         """
         return ChatPromptTemplate.from_messages([
@@ -197,15 +188,18 @@ class LangchainAgentService:
             MessagesPlaceholder(variable_name="agent_scratchpad")
         ])
 
-    def _get_user_memory(self, user_id: str) -> ConversationBufferMemory:
-        if user_id not in self.user_memories:
-            self.user_memories[user_id] = ConversationBufferMemory(
-                memory_key="chat_history",
-                return_messages=True
-            )
-        return self.user_memories[user_id]
+    def _get_user_memory(self, user_id: str) -> ConversationSummaryBufferMemory:
+        with self._lock:
+            if user_id not in self.user_memories:
+                self.user_memories[user_id] = ConversationSummaryBufferMemory(
+                    llm=self.llm,
+                    max_token_limit=1000,
+                    memory_key="chat_history",
+                    return_messages=True,
+                )
+            return self.user_memories[user_id]
         
-    def get_response(self, user_message: str, user_id: str) -> dict:
+    async def get_response(self, user_message: str, user_id: str) -> dict:
         memory = self._get_user_memory(user_id)
         
         agent = create_openai_functions_agent(self.llm, self.tools, self.prompt)
@@ -218,7 +212,7 @@ class LangchainAgentService:
         )
 
         try:
-            result = agent_executor.invoke(
+            result = await agent_executor.ainvoke(
                 {"input": user_message},
                 config={"callbacks": [StdOutCallbackHandler()]}
             )
