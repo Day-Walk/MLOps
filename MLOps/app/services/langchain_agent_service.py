@@ -4,6 +4,7 @@ import requests
 from urllib.parse import quote
 from typing import List, Dict, Any
 import functools
+from dotenv import load_dotenv
 
 from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain.callbacks import StdOutCallbackHandler
@@ -15,6 +16,8 @@ from langchain_core.tools import tool
 from langchain_community.vectorstores import Chroma
 from langchain.globals import set_llm_cache
 from langchain.cache import InMemoryCache
+
+load_dotenv()
 
 @functools.lru_cache(maxsize=100)
 def _elastic_search_cached(region: str, categories: tuple) -> list:
@@ -78,8 +81,8 @@ class LangchainAgentService:
         )
         
         # ChromaDB 로드
-        chroma_db_path = "/app/data/chroma_db_bge"
-        if not os.path.exists(chroma_db_path):
+        chroma_db_path = os.getenv("VECTORDB_PATH")
+        if not chroma_db_path or not os.path.exists(chroma_db_path):
             raise FileNotFoundError(f"ChromaDB 경로를 찾을 수 없습니다: {chroma_db_path}")
         self.chroma_bge = Chroma(
             persist_directory=chroma_db_path,
