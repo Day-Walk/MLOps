@@ -1,8 +1,6 @@
-"""
-Langchain Agent 기반 챗봇 라우터
-"""
-from fastapi import APIRouter, Query, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Query, HTTPException, Body
+from pydantic import BaseModel
+from fastapi.responses import JSONResponse, StreamingResponse
 from typing import Optional
 import asyncio
 import json
@@ -15,7 +13,7 @@ from app.services.langchain_agent_service import LangchainAgentService
 
 router = APIRouter(prefix="/api", tags=["chatbot"])
 
-# Langchain Agent 서비스 초기화 
+# Langchain Agent 서비스 초기화
 try:
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if not openai_api_key:
@@ -40,13 +38,12 @@ async def chat_stream_endpoint(
     LangChain 에이전트 기반 SSE 스트리밍 챗봇 API
     - GET 방식으로 `userid`와 `query`를 받습니다.
     - 에이전트가 생성한 최종 응답을 JSON 형식으로 스트리밍합니다.
-    - 출력 형식: {"placeid": ["장소UUID", ...], "str": "추천 코스"}
     """
     service = langchain_agent_service
     if not service:
         raise HTTPException(
             status_code=503,
-            detail="Chatbot service is unavailable. Check server logs for initialization errors (e.g., missing OPENAI_API_KEY)."
+            detail="Chatbot service is unavailable."
         )
 
     session_id = userid or str(uuid.uuid4())
@@ -55,18 +52,13 @@ async def chat_stream_endpoint(
 
     async def generate_agent_stream():
         try:
-            # 1. 에이전트를 별도 스레드에서 실행
-            agent_response = await asyncio.to_thread(
-                service.get_response,
+            # 서비스의 비동기 함수를 직접 `await`으로 호출
+            agent_response = await service.get_response(
                 user_message=query,
                 user_id=session_id
             )
 
-            # 2. 응답을 요청된 형식으로 변환
-            # agent_response: {"placeid": list, "str": str}
             final_response = json.dumps(agent_response, ensure_ascii=False)
-
-            # 3. 최종 메시지를 SSE 형식으로 전송 (각 메시지는 \n\n 으로 끝나야 함)
             yield f"data: {final_response}\n\n"
             yield "data: [DONE]\n\n"
 
@@ -87,12 +79,7 @@ async def chat_stream_endpoint(
 
     return StreamingResponse(
         generate_agent_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-        }
+        media_type="text/event-stream"
     )
 
 @router.get("/chat/clear")
