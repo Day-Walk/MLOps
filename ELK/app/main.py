@@ -15,12 +15,13 @@ async def lifespan(app: FastAPI):
     """애플리케이션 시작 시 실행"""
     elasticsearch_service.create_log_index_if_not_exists()
     elasticsearch_service.create_click_log_index_if_not_exists()
+    elasticsearch_service.create_search_log_index_if_not_exists()
     yield
 
 app = FastAPI(title="ELK Search API", version="1.0.0", lifespan=lifespan)
 
 @app.get("/api/place/search", response_model=SearchResponse)
-async def search_places(query: str, max_results: int = 23):
+async def search_places(query: str, max_results: int = 23, user_id: str | None = None):
     """장소 검색 API"""
     try:
         if not elasticsearch_service.is_connected():
@@ -28,7 +29,8 @@ async def search_places(query: str, max_results: int = 23):
         
         places = elasticsearch_service.search_places(
             query=query,
-            max_results=max_results
+            max_results=max_results,
+            user_id=user_id
         )
         
         # 딕셔너리를 Place 객체로 변환
@@ -44,7 +46,7 @@ async def search_places(query: str, max_results: int = 23):
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/api/place/search/llm-tool", response_model=LLMToolResponse)
-async def search_places_for_llm_tool(region: str, categories: List[str] = Query(..., min_length=1, max_length=3)):
+async def search_places_for_llm_tool(region: str, categories: List[str] = Query(..., min_length=1), user_id: str | None = None):
     """LLM 도구를 위한 장소 검색 API"""
     try:
         if not elasticsearch_service.is_connected():
@@ -52,7 +54,8 @@ async def search_places_for_llm_tool(region: str, categories: List[str] = Query(
         
         uuids, total = elasticsearch_service.search_places_for_llm_tool(
             region=region,
-            categories=categories
+            categories=categories,
+            user_id=user_id
         )
         
         return LLMToolResponse(
@@ -187,5 +190,23 @@ async def get_place_click_count(place_id: str):
             "clickCount": count
         }
         
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/training-data/{user_id}")
+async def get_training_data(user_id: str):
+    """DeepCTR 모델 학습을 위한 데이터 생성 API"""
+    try:
+        if not elasticsearch_service.is_connected():
+            raise HTTPException(status_code=503, detail="Elasticsearch 연결 실패")
+        
+        data = elasticsearch_service.get_search_click_data_for_user(user_id)
+        
+        return {
+            "success": True,
+            "userId": user_id,
+            "data": data
+        }
+    
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
