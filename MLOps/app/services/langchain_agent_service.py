@@ -233,10 +233,10 @@ class LangchainAgentService:
                     response_data = json.loads(json_str)
                 else:
                     # JSON 객체를 찾지 못한 경우, 전체 문자열을 응답으로 처리
-                    response_data = {"placeid": [], "str": output_str}
+                    response_data = {"placeid": [], "str": "죄송합니다. 처리 중 오류가 발생했습니다."}
             except (json.JSONDecodeError, TypeError):
                 # JSON 파싱 실패 시, 추천 코스를 담은 텍스트 응답으로 처리
-                response_data = {"placeid": [], "str": output_str}
+                response_data = {"placeid": [], "str": "죄송합니다. 처리 중 오류가 발생했습니다."}
 
             return response_data
 
