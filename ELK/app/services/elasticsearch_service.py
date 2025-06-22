@@ -74,7 +74,7 @@ class ElasticsearchService:
                     "filter": []
                 }
             },
-            "size": 10000,
+            "size": 100,
             "_source": ["uuid"],
             "track_total_hits": True
         }
