@@ -19,11 +19,18 @@ jobs:
       uses: appleboy/ssh-action@v1.0.0
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        VECTORDB_PATH: ${{ secrets.VECTORDB_PATH }}
+         
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PORT: ${{ secrets.DB_PORT }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_DATABASE: ${{ secrets.DB_DATABASE }}
+
         CLICK_LOG: ${{ secrets.CLICK_LOG }}
         DEEPFM_TRAIN_MODEL_PATH: ${{ secrets.DEEPFM_TRAIN_MODEL_PATH }}
         DEEPFM_TRAIN_ENCODERS_PATH: ${{ secrets.DEEPFM_TRAIN_ENCODERS_PATH }}
         DEEPFM_TRAIN_KEY2INDEX_PATH: ${{ secrets.DEEPFM_TRAIN_KEY2INDEX_PATH }}
-        VECTORDB_PATH: ${{ secrets.VECTORDB_PATH }}
       with:
         host: ${{ secrets.EC2_HOST_ML }}
         username: ${{ secrets.EC2_USER }}
