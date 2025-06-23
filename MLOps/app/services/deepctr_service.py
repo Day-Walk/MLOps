@@ -41,7 +41,7 @@ class DeepCTRService:
         else:
             # 사용자가 존재하지 않을 경우, 기본값으로 채움
             places_df['userid'] = userid
-            places_df['name'] = 'unknown'
+            places_df['place_name'] = 'unknown'
             places_df['age'] = 30 # 평균 또는 기본값
             places_df['gender'] = 1 # 남성을 기본값으로 가정
             places_df['like_list'] = "[]"
