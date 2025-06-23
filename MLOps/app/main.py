@@ -52,6 +52,10 @@ app.include_router(crowd.router)
 @app.get("/")
 async def root():
     """API 기본 정보"""
+    recommendation_status = "active" if recommendation and hasattr(recommendation, 'deepctr_service') and recommendation.deepctr_service else "inactive"
+    chatbot_status = "active" if chatbot and hasattr(chatbot, 'langchain_agent_service') and chatbot.langchain_agent_service else "inactive"
+    crowd_status = "active" if crowd and hasattr(crowd, 'router') else "inactive"
+    
     return {
         "service": "MLOps 통합 API",
         "version": "3.0.0",
@@ -60,7 +64,7 @@ async def root():
             "recommendation": {
                 "endpoint": "/api/recommend",
                 "description": "ELK + DeepCTR 기반 장소 추천",
-                "status": "active" if hasattr(recommendation, 'deepctr_service') else "inactive"
+                "status": recommendation_status
             },
             "chatbot": {
                 "endpoints": {
@@ -69,12 +73,12 @@ async def root():
                     "stats": "/api/chat/stats"
                 },
                 "description": "OpenAI GPT 기반 데이트 코스 추천 챗봇",
-                "status": "active" if hasattr(chatbot, 'langchain_agent_service') else "inactive"
+                "status": chatbot_status
             },
             "crowd": {
                 "endpoint": "/api/crowd",
                 "description": "혼잡도 예측 API",
-                "status": "active"
+                "status": crowd_status
             }
         },
         "documentation": "/docs"
@@ -84,15 +88,14 @@ async def root():
 async def health_check():
     """전체 서비스 헬스체크"""
     # 추천 시스템 상태 확인
-    recommendation_status = "inactive"
-    if hasattr(recommendation, 'deepctr_service') and recommendation.deepctr_service:
-        recommendation_status = "active"
+    recommendation_status = "active" if recommendation and hasattr(recommendation, 'deepctr_service') and recommendation.deepctr_service else "inactive"
     
     # 챗봇 상태 확인
-    chatbot_status = "inactive"
-    if hasattr(chatbot, 'langchain_agent_service') and chatbot.langchain_agent_service:
-        chatbot_status = "active"
+    chatbot_status = "active" if chatbot and hasattr(chatbot, 'langchain_agent_service') and chatbot.langchain_agent_service else "inactive"
     
+    # 혼잡도 서비스 상태
+    crowd_status = "active" if crowd and hasattr(crowd, 'router') else "inactive"
+
     # 전체 상태 결정
     overall_status = "healthy" if (recommendation_status == "active" or chatbot_status == "active") else "unhealthy"
     
@@ -101,29 +104,34 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "services": {
             "recommendation": recommendation_status,
-            "chatbot": chatbot_status
+            "chatbot": chatbot_status,
+            "crowd": crowd_status
         },
-        "active_chat_sessions": len(getattr(chatbot, 'active_sessions', {})),
+        "active_chat_sessions": len(getattr(chatbot, 'active_sessions', {}) if chatbot else {}),
         "version": "3.0.0"
     }
 
 @app.get("/stats")
 async def get_overall_stats():
     """전체 서비스 통계"""
+    recommendation_status = "active" if recommendation and hasattr(recommendation, 'deepctr_service') and recommendation.deepctr_service else "inactive"
+    chatbot_status = "active" if chatbot and hasattr(chatbot, 'langchain_agent_service') and chatbot.langchain_agent_service else "inactive"
+    crowd_status = "active" if crowd and hasattr(crowd, 'router') else "inactive"
+
     return {
         "api_version": "3.0.0",
         "services": {
             "recommendation": {
-                "status": "active" if hasattr(recommendation, 'deepctr_service') else "inactive",
+                "status": recommendation_status,
                 "type": "ELK + DeepCTR"
             },
             "chatbot": {
-                "status": "active" if hasattr(chatbot, 'langchain_agent_service') else "inactive",
+                "status": chatbot_status,
                 "type": "OpenAI GPT",
-                "active_sessions": len(getattr(chatbot, 'active_sessions', {}))
+                "active_sessions": len(getattr(chatbot, 'active_sessions', {}) if chatbot else {})
             },
             "crowd": {
-                "status": "active",
+                "status": crowd_status,
                 "type": "Congestion Prediction"
             }
         },
