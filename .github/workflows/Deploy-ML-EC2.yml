@@ -61,6 +61,11 @@ jobs:
           echo "DEEPFM_TRAIN_ENCODERS_PATH=$DEEPFM_TRAIN_ENCODERS_PATH" >> .env
           echo "DEEPFM_TRAIN_KEY2INDEX_PATH=$DEEPFM_TRAIN_KEY2INDEX_PATH" >> .env
           echo "VECTORDB_PATH=$VECTORDB_PATH" >> .env
+          echo "DB_HOST=$DB_HOST" >> .env
+          echo "DB_PORT=$DB_PORT" >> .env
+          echo "DB_USER=$DB_USER" >> .env
+          echo "DB_PASSWORD=$DB_PASSWORD" >> .env
+          echo "DB_DATABASE=$DB_DATABASE" >> .env
           
           # Docker 컨테이너 재시작 (docker-compose가 있다면)
           if [ -f docker-compose.yml ]; then
