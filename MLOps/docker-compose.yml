@@ -1,9 +1,11 @@
 services:
   mlops-backend:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: MLOps/Dockerfile
     container_name: mlops-backend
+    env_file:
+      - ./env.list
     environment:
       - PYTHONUNBUFFERED=1
       - ENV=production
