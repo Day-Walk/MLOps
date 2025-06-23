@@ -19,11 +19,11 @@ async def recommend_places(userid: str, query: str):
         
         # 스키마에 맞게 데이터 형식 변환
         recommend_places = [
-            {"id": p.get("id"), "category": p.get("category"), "subcategory": p.get("subcategory")}
+            {k: v for k, v in {"id": p.get("id"), "category": p.get("category"), "subcategory": p.get("subcategory")}.items() if v is not None}
             for p in top_places_data
         ]
         normal_places = [
-            {"id": p.get("id"), "category": p.get("category"), "subcategory": p.get("subcategory")}
+            {k: v for k, v in {"id": p.get("id"), "category": p.get("category"), "subcategory": p.get("subcategory")}.items() if v is not None}
             for p in other_places_data
         ]
         
