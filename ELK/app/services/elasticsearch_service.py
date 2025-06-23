@@ -241,30 +241,13 @@ class ElasticsearchService:
                     }
                 },
                 "sort": [
-                    {"createAt": {"order": "asc"}},
-                    {"_id": {"order": "asc"}}  # Tie-breaker for documents with the same timestamp
+                    {"createAt": {"order": "asc"}}
                 ],
-                "size": 1000  # 한 번에 가져올 문서 수
+                "size": 10000  # Elasticsearch의 기본 최대 결과창 크기(10000)로 설정
             }
 
-            all_logs = []
-            
-            # 첫 페이지 검색
             response = self.es.search(index=self.log_index_name, body=query)
-            hits = response['hits']['hits']
-            all_logs.extend(hit['_source'] for hit in hits)
-
-            # 다음 페이지가 있는 동안 계속 반복
-            while len(hits) > 0:
-                # 마지막 문서의 정렬 값을 다음 검색의 시작점으로 사용
-                last_sort_values = hits[-1]['sort']
-                query['search_after'] = last_sort_values
-                
-                response = self.es.search(index=self.log_index_name, body=query)
-                hits = response['hits']['hits']
-                all_logs.extend(hit['_source'] for hit in hits)
-
-            return all_logs
+            return [hit['_source'] for hit in response['hits']['hits']]
 
         except Exception as e:
             print(f"로그 검색 오류: {e}")
