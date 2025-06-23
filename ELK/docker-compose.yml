@@ -67,8 +67,8 @@ services:
     ports:
       - "9201:9201"
     environment:
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
+      - ES_HOST=${ES_HOST}
+      - ES_PORT=${ES_PORT}
     restart: on-failure:10
     depends_on:
       elasticsearch:

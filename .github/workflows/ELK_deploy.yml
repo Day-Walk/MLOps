@@ -29,8 +29,11 @@ jobs:
                       # 2. 코드 최신화
                       git pull origin main
 
-                      # 3. docker compose
+                      # 3. .env 파일 생성 및 docker compose 실행
                       cd ./ELK
+                      echo "ES_HOST=${{ secrets.ES_HOST }}" > .env
+                      echo "ES_PORT=${{ secrets.ES_PORT }}" >> .env
+                      
                       docker compose stop elasticsearch-init elasticsearch kibana elk-api || true
                       docker compose rm -f elasticsearch-init elasticsearch kibana elk-api || true
                       docker compose up -d --build
