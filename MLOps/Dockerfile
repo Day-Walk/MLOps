@@ -10,6 +10,7 @@ RUN pip install -U langchain-chroma chromadb
 
 # app 디렉토리만 복사 (중요!)
 COPY ./app ./app
+COPY ../ELK ./ELK
 
 # Python 경로 설정
 ENV PYTHONPATH=/app
