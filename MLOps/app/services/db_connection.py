@@ -44,7 +44,7 @@ class DatabaseService:
         """쿼리 실행 후 데이터프레임 반환"""
         if not self.engine:
             print("DB 엔진을 사용할 수 없습니다.")
-            return None
+            return pd.DataFrame()
         
         try:
             with self.engine.connect() as connection:
@@ -52,7 +52,7 @@ class DatabaseService:
                 return df
         except exc.SQLAlchemyError as e:
             print(f"쿼리 실행 오류: {e}")
-            return None
+            return pd.DataFrame()
 
     def user_table_query(self):
         query = """
@@ -93,3 +93,69 @@ class DatabaseService:
                 'tag_names': 'like_list'
             })
         return df
+
+    def get_users_info_by_user_ids(self, user_ids: list):
+        """user_id 리스트로 여러 사용자 정보와 '좋아요' 태그 목록을 조회"""
+        if not user_ids:
+            df = pd.DataFrame()
+            df['userid'] = None
+            df['name'] = None
+            df['age'] = None
+            df['gender'] = None
+            df['like_list'] = None
+            return df
+
+        # IN 절에 대한 플레이스홀더를 동적으로 생성
+        placeholders = ', '.join([f':id_{i}' for i in range(len(user_ids))])
+        params = {f'id_{i}': user_id for i, user_id in enumerate(user_ids)}
+
+        query = f"""
+        SELECT
+            HEX(u.id) AS userid,
+            u.name,
+            u.age,
+            u.gender,
+            (SELECT IFNULL(JSON_ARRAYAGG(t.keyword), JSON_ARRAY())
+             FROM user_like ul
+             LEFT JOIN JSON_TABLE(
+                 ul.tag_list,
+                 '$[*]' COLUMNS (tag_id VARCHAR(36) PATH '$')
+             ) AS jt ON TRUE
+             LEFT JOIN tag t ON t.id = UNHEX(REPLACE(jt.tag_id, '-', ''))
+             WHERE ul.user_id = u.id
+            ) AS like_list
+        FROM
+            user u
+        WHERE HEX(u.id) IN ({placeholders})
+        """
+        return self.execute_query(query, params=params)
+
+    def get_places_info_by_place_ids(self, place_ids: list):
+        """place_id 리스트로 여러 장소 정보 조회"""
+        if not place_ids:
+            df = pd.DataFrame()
+            df['place_id'] = None
+            df['place_name'] = None
+            df['category'] = None
+            df['subcategory'] = None
+            return df
+
+        # IN 절에 대한 플레이스홀더를 동적으로 생성
+        placeholders = ', '.join([f':id_{i}' for i in range(len(place_ids))])
+        params = {f'id_{i}': place_id for i, place_id in enumerate(place_ids)}
+
+        query = f"""
+        SELECT
+            HEX(p.id) AS place_id,
+            p.name AS place_name,
+            c.name AS category,
+            sc.name AS subcategory
+        FROM
+            place p
+        LEFT JOIN
+            sub_category sc ON p.sub_category_id = sc.id
+        LEFT JOIN
+            category c ON sc.category_id = c.id
+        WHERE HEX(p.id) IN ({placeholders})
+        """
+        return self.execute_query(query, params=params)

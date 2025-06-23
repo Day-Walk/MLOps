@@ -9,6 +9,20 @@ from deepctr_torch.inputs import SparseFeat, VarLenSparseFeat, get_feature_names
 import ast
 import os
 import pickle
+import sys
+import json
+
+# 프로젝트 루트 경로 추가
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+mlops_app_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+if mlops_app_root not in sys.path:
+    sys.path.insert(0, mlops_app_root)
+
+from ELK.app.services.elasticsearch_service import ElasticsearchService
+from app.services.db_connection import DatabaseService
+from tqdm import tqdm
 
 def pad_sequences(sequences, maxlen, padding='post', value=0):
     """
@@ -23,9 +37,9 @@ def pad_sequences(sequences, maxlen, padding='post', value=0):
     return padded
 
 class DeepFMModdelTrain:
-    def __init__(self, data_path):
+    def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.data = pd.read_csv(data_path)
+        self.data = None
         self.sparse_features = ["userid", "name", "age", "gender", "place_id", "place_name","category", "subcategory"]
         self.sequence_feature = "like_list"
         self.linear_feature_columns = None
@@ -41,20 +55,76 @@ class DeepFMModdelTrain:
         self.label_encoders = {}
         self.key2index = {}
     
-    def preprocess(self): 
-        # sparse feature 이름 저장
-        sparse_feature_names = self.sparse_features.copy()
+    def load_data(self):
+        """
+        Elasticsearch에서 상호작용 데이터를, DB에서 메타데이터를 조회하여 학습 데이터를 생성합니다.
+        """
+        # 1. Elasticsearch에서 상호작용 데이터 가져오기
+        print("1. Elasticsearch에서 상호작용 데이터를 불러오는 중...")
+        es_service = ElasticsearchService()
+        interaction_df = es_service.get_training_data_for_all_users()
+
+        if interaction_df is None or interaction_df.empty:
+            print("[오류] Elasticsearch에서 데이터를 불러오지 못했습니다. 파이프라인을 중단합니다.")
+            self.data = pd.DataFrame()
+            return
+
+        # 2. 고유 ID 추출 및 DB 서비스 초기화
+        unique_users = list(interaction_df['userid'].unique())
+        unique_places = list(interaction_df['place_id'].unique())
         
+        # 3. DB에서 메타데이터 일괄 조회
+        db_service = DatabaseService()
+        print("\n2. DB에서 사용자 및 장소 정보를 한번에 가져오는 중...")
+        user_df = db_service.get_users_info_by_user_ids(unique_users)
+        place_df = db_service.get_places_info_by_place_ids(unique_places)
+        db_service.close_connection()
+
+        # 4. 데이터프레임 병합
+        print("\n3. 데이터프레임 병합 중...")
+        data = interaction_df.merge(user_df, on='userid', how='left')
+        self.data = data.merge(place_df, on='place_id', how='left')
+
+        # 5. 결측값 처리
+        if not self.data.empty:
+            self.data['like_list'] = self.data['like_list'].fillna('[]')
+        
+        print(f"\n총 {len(self.data)}개의 학습 데이터 준비 완료.")
+
+    def preprocess(self):
+        if self.data is None or self.data.empty:
+            print("학습 데이터가 없습니다. 먼저 load_data()를 호출하세요.")
+            return False
+
         # sparse feature에 대해 결측값 처리 및 label encoding 수행
-        for feature in sparse_feature_names:
+        for feature in self.sparse_features:
             self.data[feature] = self.data[feature].fillna("unknown")
             encoder = LabelEncoder()
             self.data[feature] = encoder.fit_transform(self.data[feature])
             self.label_encoders[feature] = encoder
         
-        # sequence feature 리스트 변환
-        self.data[self.sequence_feature] = self.data[self.sequence_feature].apply(ast.literal_eval)
-        
+        # 'category_tag' 포맷의 'like_list'를 생성하고, JSON 문자열을 리스트로 변환
+        print("전처리: 'category'와 'like_list'를 조합하여 최종 피처 생성 중...")
+        def create_category_prefixed_likes(row):
+            category = row['category']
+            like_list_str = row['like_list']
+            
+            # category나 like_list가 비어있으면 빈 리스트 반환
+            if pd.isna(category) or pd.isna(like_list_str):
+                return []
+            
+            try:
+                # DB에서 온 JSON 문자열을 파이썬 리스트로 변환
+                tags = json.loads(like_list_str)
+                if not isinstance(tags, list):
+                    return []
+                # '카테고리_태그' 형태로 조합
+                return [f"{category}_{tag}" for tag in tags]
+            except (json.JSONDecodeError, TypeError):
+                return []
+
+        self.data['like_list'] = self.data.apply(create_category_prefixed_likes, axis=1)
+
         # sequence feature 인코딩
         def encode(x):
             for k in x:
@@ -63,14 +133,13 @@ class DeepFMModdelTrain:
             return [self.key2index[k] for k in x]
         self.data[self.sequence_feature] = self.data[self.sequence_feature].apply(encode)
         
-        # sequence feature 패딩
+        # sequence feature의 최대 길이만 계산하고, 데이터프레임은 수정하지 않음
         self.max_len = max(len(x) for x in self.data[self.sequence_feature])
-        self.data[self.sequence_feature] = pad_sequences(self.data[self.sequence_feature], maxlen=self.max_len, padding='post', value=0)
         
         # 최종 feature 생성
         sparse_feature_columns = [SparseFeat(feature, 
                                            vocabulary_size=self.data[feature].nunique(), 
-                                           embedding_dim=4) for feature in sparse_feature_names]
+                                           embedding_dim=4) for feature in self.sparse_features]
         
         sequence_feature_columns = [VarLenSparseFeat(SparseFeat(self.sequence_feature, 
                                                              vocabulary_size=len(self.key2index) + 1, 
@@ -81,9 +150,18 @@ class DeepFMModdelTrain:
         
         self.feature_names = get_feature_names(self.linear_feature_columns + self.dnn_feature_columns)
         
-        # 학습 데이터 생성
-        self.model_input = {name: self.data[name] for name in self.feature_names}
-        self.model_input[self.target] = self.data[self.target]
+        # 학습 데이터 생성 (모델 입력은 Numpy 배열 형태여야 함)
+        self.model_input = {}
+        for name in self.feature_names:
+            if name == self.sequence_feature:
+                # 시퀀스 피처는 이 단계에서 패딩을 적용하여 Numpy 배열로 변환
+                sequences = pad_sequences(self.data[name].values, maxlen=self.max_len, padding='post', value=0)
+                self.model_input[name] = sequences
+            else:
+                # 다른 피처들은 .values를 사용하여 Numpy 배열로 변환
+                self.model_input[name] = self.data[name].values
+
+        self.model_input[self.target] = self.data[self.target].values
         
         # 인코더들 저장
         with open(self.encoders_path, 'wb') as f:
@@ -91,7 +169,17 @@ class DeepFMModdelTrain:
         with open(self.key2index_path, 'wb') as f:
             pickle.dump({'key2index': self.key2index, 'max_len': self.max_len}, f)
         
+        return True # 전처리 성공
+
     def train(self):
+        if self.linear_feature_columns is None or self.dnn_feature_columns is None:
+            print("피처 컬럼이 초기화되지 않았습니다. preprocess()를 먼저 실행하거나 데이터 로딩을 확인하세요.")
+            return None
+        
+        if self.data is None:
+            print("학습 데이터(self.data)가 없어 학습을 진행할 수 없습니다.")
+            return None
+
         model = DeepFM(self.linear_feature_columns, 
                        self.dnn_feature_columns, 
                        task="regression",
@@ -170,14 +258,16 @@ class DeepFMModdelTrain:
             return [self.key2index.get(k, 0) for k in x]  # 없는 키는 0으로 처리
         
         input_df[sequence_feature_name] = input_df[sequence_feature_name].apply(encode_sequence)
-        input_df[sequence_feature_name] = pad_sequences(input_df[sequence_feature_name], maxlen=self.max_len, padding='post', value=0)
         
         # 모델 입력 형태로 변환
         model_input = {}
         for name in self.feature_names:
             if name == sequence_feature_name:
-                model_input[name] = np.array(list(input_df[name]))
+                # 시퀀스 피처는 이 단계에서 패딩을 적용하여 Numpy 배열로 변환
+                sequences = pad_sequences(input_df[name].values, maxlen=self.max_len, padding='post', value=0)
+                model_input[name] = sequences
             else:
+                # 다른 피처들은 .values를 사용하여 Numpy 배열로 변환
                 model_input[name] = input_df[name].values
         
         # 모델 로드 및 예측
@@ -191,20 +281,28 @@ class DeepFMModdelTrain:
         return model.predict(model_input)
     
 if __name__ == "__main__":
-    deepfm_train = DeepFMModdelTrain(os.environ.get("CLICK_LOG", ""))
-    deepfm_train.preprocess()
-    model = deepfm_train.train()
-    # 예시 데이터
-    input_data = {
-        "userid": ["0x06fa1ba7a7e44621a2338e6093e53341", "0x6d132cda535848e295b8e489486ea841", "0x0fa0a9c4a283451181b77d91e3229c91"],
-        "name": ["딩딩이", "댕댕이 언니", "에구궁"],
-        "age": [30, 60, 50],
-        "gender": [1, 1, 0],
-        "place_id": ["0xeb37b72b1fa54dc6a3867517ac2df6ef", "0x0528fbb073104d51974112a71d72b4e4", "0x1226fc5501194d2eba00383748045c20"],
-        "place_name": ["롯데월드 쇼핑몰", "청아라 생선구이", "시골보쌈"],
-        "category": ["쇼핑", "음식점&카페", "음식점&카페"],
-        "subcategory": ["전문매장/상가", "한식", "한식"],
-        "like_list": ["[11, 12, 13, 14, 15, 16, 17, 18, 19, 20]", "[26, 22, 29, 44]", "[11, 28, 14, 29, 10, 22, 8, 25, 30]"]
-    }
-    prediction = deepfm_train.predict(input_data)
-    print("예측 결과:", prediction)
+    deepfm_train = DeepFMModdelTrain()
+    deepfm_train.load_data()
+    
+    # 전처리가 성공한 경우에만 학습 진행
+    if deepfm_train.preprocess():
+        model = deepfm_train.train()
+        
+        if model:
+            # 예시 데이터
+            input_data = {
+                "userid": ["0x06fa1ba7a7e44621a2338e6093e53341", "0x6d132cda535848e295b8e489486ea841", "0x0fa0a9c4a283451181b77d91e3229c91"],
+                "name": ["딩딩이", "댕댕이 언니", "에구궁"],
+                "age": [30, 60, 50],
+                "gender": [1, 1, 0],
+                "place_id": ["0xeb37b72b1fa54dc6a3867517ac2df6ef", "0x0528fbb073104d51974112a71d72b4e4", "0x1226fc5501194d2eba00383748045c20"],
+                "place_name": ["롯데월드 쇼핑몰", "청아라 생선구이", "시골보쌈"],
+                "category": ["쇼핑", "음식점&카페", "음식점&카페"],
+                "subcategory": ["전문매장/상가", "한식", "한식"],
+                "like_list": ['["태그1", "태그2"]', '["태그3"]', '[]'] 
+            }
+            # predict 메서드를 사용하기 위한 별도의 인스턴스 생성
+            # 학습 시 사용된 인코더 등을 그대로 사용하기 위함
+            predictor = DeepFMModdelTrain() 
+            prediction = predictor.predict(input_data)
+            print("예측 결과:", prediction)
