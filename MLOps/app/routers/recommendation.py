@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 import traceback
 from app.schema.recommendation_schema import ReccomendRequest, ReccomendResponse
@@ -7,14 +7,30 @@ from app.services.deepctr_service import DeepCTRService
 
 router = APIRouter(prefix="/api", tags=["recommendation"])
 
-# 서비스 초기화
-elk_client = ELKClient()
-deepctr_service = DeepCTRService()
+def services_provider():
+    """ELKClient, DeepCTRService 를 최초 호출 시 생성해 캐시합니다.
+    생성 과정에서 예외가 나면 None 을 반환해 API 가 503 을 응답하도록 합니다."""
+    if not hasattr(services_provider, "cache"):
+        try:
+            services_provider.cache = (ELKClient(), DeepCTRService())
+        except Exception as e:
+            print("[recommendation] 서비스 초기화 실패:", e)
+            services_provider.cache = None
+    return services_provider.cache
 
 @router.get("/recommend", response_model=ReccomendResponse)
-async def recommend_places(userid: str, query: str):
+async def recommend_places(
+    userid: str,
+    query: str,
+    services=Depends(services_provider)
+):
     """Place ID 리스트 기반 추천 API"""
     try:
+        if services is None:
+            raise HTTPException(status_code=503, detail="Recommendation service not available")
+
+        elk_client, deepctr_service = services
+
         top_places_data, other_places_data = await deepctr_service.rank_places_by_ctr(userid, query)
         
         # 스키마에 맞게 데이터 형식 변환
@@ -41,9 +57,16 @@ async def recommend_places(userid: str, query: str):
 @router.get("/recommend/health")
 async def recommendation_health():
     """추천 시스템 헬스체크"""
+    services = services_provider()
+    status = "healthy" if services else "unhealthy"
+    elk_ready = deepctr_ready = "not ready"
+    if services:
+        elk_ready = "ready"
+        deepctr_ready = "ready"
+
     return {
-        "status": "healthy" if (deepctr_service and elk_client) else "unhealthy",
-        "elk_client": "ready" if elk_client else "not ready",
-        "deepctr_service": "ready" if deepctr_service else "not ready",
+        "status": status,
+        "elk_client": elk_ready,
+        "deepctr_service": deepctr_ready,
         "service": "recommendation"
     }
