@@ -60,7 +60,8 @@ jobs:
             docker compose down
             docker compose rm -f
             docker rmi $(docker images -q) -f
-            docker compose up -d --build
+            docker compose build --no-cache
+            docker compose up -d
           fi
           
           echo "Deployment completed successfully!"
