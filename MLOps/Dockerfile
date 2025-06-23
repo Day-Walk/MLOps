@@ -3,14 +3,14 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # requirements.txt 복사 및 설치
-COPY requirements.txt .
+COPY MLOps/requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install -U langchain-chroma chromadb
 
-# app 디렉토리만 복사 (중요!)
-COPY ./app ./app
-COPY ../ELK ./ELK
+# app 디렉토리와 ELK 디렉토리 복사
+COPY MLOps/app ./app
+COPY ELK ./ELK
 
 # Python 경로 설정
 ENV PYTHONPATH=/app
