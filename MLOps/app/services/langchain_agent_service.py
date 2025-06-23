@@ -69,7 +69,7 @@ class LangchainAgentService:
         os.environ["OPENAI_API_KEY"] = openai_api_key
         # set_llm_cache(InMemoryCache()) # 토큰 사용량 측정을 위해 캐시 비활성화
         
-        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        self.llm = ChatOpenAI(model="gpt-4.1", temperature=0)
         
         # 임베딩 모델 초기화
         self.model_bge = HuggingFaceEmbeddings(
@@ -136,7 +136,10 @@ class LangchainAgentService:
 
     def _create_prompt_template(self):
         template = """
-        당신은 서울 여행 코스 추천 챗봇입니다. 당신의 유일하고 가장 중요한 임무는 사용자와의 대화 후, 아래 [JSON 출력 형식]에 맞는 유효한 JSON 객체만을 출력하는 것입니다. **어떤 경우에도 JSON 형식이 아닌 텍스트를 출력해서는 안 됩니다.**
+        당신은 서울 여행 코스 추천 챗봇입니다. 당신의 유일하고 가장 중요한 임무는 사용자와의 대화 후, 아래 [JSON 출력 형식]에 맞는 유효한 JSON 객체만을 출력하는 것입니다. 
+        **어떤 경우에도 JSON 형식이 아닌 텍스트를 출력해서는 안 됩니다.**
+        또한, 당신은 사용자의 쿼리문을 이해하고, 사용자가 원하는 코스를 추천 또는 수정해야 합니다.
+        **답변 내용은 반드시 벡터 데이터베이스에 저장된 데이터만을 사용해야 합니다.**
 
         **중요한 제약사항**: 장소에 대한 모든 정보는 반드시 제공된 도구(elastic_search, search_with_filtering)를 통해 검색된 데이터베이스 결과만을 사용해야 합니다. 당신의 사전 지식으로 장소 정보를 추가하거나 보완해서는 안 됩니다.
 

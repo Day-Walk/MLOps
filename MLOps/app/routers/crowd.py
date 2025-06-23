@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 from app.schema.crowd_schema import CrowdResponse, CrowdLevel, CrowdInfo
 
-router = APIRouter(prefix="/api", tags=["crowd"])
+router = APIRouter(prefix="/api", tags=["crowdness"])
 
 @router.get("/crowd", response_model=CrowdResponse)
-async def get_crowd(hour: int):
+def get_crowd(hour: int):
     """
     ## 혼잡도 예측 API
     - **hour**: 시간 (정수)
