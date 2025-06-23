@@ -40,14 +40,15 @@ class DeepCTRService:
                 places_df[col] = val
         else:
             # 사용자가 존재하지 않을 경우, 기본값으로 채움
+            print("사용자가 존재하지 않습니다.")
             places_df['userid'] = userid
-            places_df['place_name'] = 'unknown'
+            places_df['name'] = 'unknown'
             places_df['age'] = 30 # 평균 또는 기본값
             places_df['gender'] = 1 # 남성을 기본값으로 가정
             places_df['like_list'] = "[]"
         
         # 원본 데이터에서 응답에 필요한 컬럼 보존
-        output_columns = ['place_id', 'category', 'subcategory']
+        output_columns = ['place_id', 'place_name', 'category', 'subcategory']
         preserved_df = places_df[output_columns]
 
         # 모델 예측
