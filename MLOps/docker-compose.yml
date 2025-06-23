@@ -5,7 +5,7 @@ services:
       dockerfile: MLOps/Dockerfile
     container_name: mlops-backend
     env_file:
-      - ./env.list
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
       - ENV=production
