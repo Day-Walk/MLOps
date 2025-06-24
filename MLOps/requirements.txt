@@ -40,3 +40,6 @@ openai==1.68.2
 mysql-connector-python==8.4.0
 SQLAlchemy==2.0.31
 javaobj-py3==0.4.4
+
+# Schedule
+schedule==1.2.0
