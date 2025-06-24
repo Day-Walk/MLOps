@@ -12,7 +12,7 @@ from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain.callbacks import StdOutCallbackHandler
 from langchain_openai import ChatOpenAI
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.memory import ConversationSummaryBufferMemory
+from langchain.memory import ConversationBufferWindowMemory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_community.vectorstores import Chroma
@@ -67,14 +67,13 @@ class LangchainAgentService:
         if not openai_api_key:
             raise ValueError("OpenAI API 키가 필요합니다.")
         os.environ["OPENAI_API_KEY"] = openai_api_key
-        # set_llm_cache(InMemoryCache()) # 토큰 사용량 측정을 위해 캐시 비활성화
         
         self.llm = ChatOpenAI(model="gpt-4.1", temperature=0)
         
         # 임베딩 모델 초기화
         self.model_bge = HuggingFaceEmbeddings(
             model_name="upskyy/bge-m3-korean",
-            model_kwargs={'device': 'cpu'},  # 'cuda' 사용 가능 시 변경
+            model_kwargs={'device': 'cpu'},
             encode_kwargs={'normalize_embeddings': True}
         )
         
@@ -92,10 +91,6 @@ class LangchainAgentService:
         self.prompt = self._create_prompt_template()
         self.user_memories = {}
         self._lock = threading.Lock()
-
-    def get_cache_info(self):
-        """캐시 정보를 반환합니다. (현재 비활성화)"""
-        return {"status": "caching is disabled for async implementation"}
 
     def _create_search_with_filtering_tool(self):
         @tool
@@ -191,12 +186,11 @@ class LangchainAgentService:
             MessagesPlaceholder(variable_name="agent_scratchpad")
         ])
 
-    def _get_user_memory(self, user_id: str) -> ConversationSummaryBufferMemory:
+    def _get_user_memory(self, user_id: str) -> ConversationBufferWindowMemory:
         with self._lock:
             if user_id not in self.user_memories:
-                self.user_memories[user_id] = ConversationSummaryBufferMemory(
-                    llm=self.llm,
-                    max_token_limit=1000,
+                self.user_memories[user_id] = ConversationBufferWindowMemory(
+                    k=10,  # 최근 10개의 대화만 유지
                     memory_key="chat_history",
                     return_messages=True,
                 )
