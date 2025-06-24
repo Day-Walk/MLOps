@@ -6,7 +6,7 @@ WORKDIR /app
 COPY MLOps/requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install -U langchain-chroma chromadb
+RUN pip install -U langchain-chroma
 
 # app 디렉토리와 ELK 디렉토리 복사
 COPY MLOps/app ./app
