@@ -1,0 +1,16 @@
+[Unit]
+Description=혼잡도 예측 실행 서비스      # 서비스 이름 
+After=network.target   # 네트워크가 준비된 후 이 서비스를 실행하라는 의미입니다. API 요청하니까 필요
+
+[Service]
+ExecStart=/home/ubuntu/run_congestion.sh  # 실제 실행할 명령어 (쉘 스크립트). 이 안에서 파이썬 실행
+Restart=always   # 서비스가 중단되면 무조건 재시작
+User=ubuntu  # 	이 서비스를 실행할 유저.
+Environment="PYTHONUNBUFFERED=1"  # 파이썬 출력을 실시간으로 버퍼링 없이 보내게 함
+WorkingDirectory=/home/ubuntu/MLOps/MLOps/app/python_schedule  # 이 경로로 이동해서 실행합니다. 상대경로나 로그 파일 쓸 때 기준이 됨
+StandardOutput=append:/home/ubuntu/congestion.log  # 실행 결과를 이 로그 파일에 추가 모드로 저장
+StandardError=append:/home/ubuntu/congestion_error.log  # 에러가 발생하면 이 파일에 저장
+
+[Install]
+WantedBy=multi-user.target  # 리눅스가 부팅될 때 "다중 사용자 모드"에서 자동 실행되게 만듭니다.
+
