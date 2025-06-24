@@ -2,6 +2,7 @@ import os
 import json
 import httpx
 import re
+import asyncio
 import threading
 from urllib.parse import quote
 from typing import List, Dict, Any
@@ -18,46 +19,6 @@ from langchain_core.tools import tool
 from langchain_community.vectorstores import Chroma
 
 load_dotenv()
-
-@tool
-async def elastic_search(region: str, categories: List[str]) -> list:
-    """
-    엘라스틱 검색 도구
-
-    사용자가 명시한 '지역(region)'과 '카테고리(categories)' 목록을 받아, 해당 조건에 부합하는 장소들의 UUID 리스트를 반환합니다.
-    이 도구는 카테고리를 추론하지 않으므로, 반드시 명확한 카테고리 목록을 전달해야 합니다.
-
-    Args:
-        region (str): 사용자가 명시한 지역명 (예: '강남', '홍대', '성수동', '이태원로', '잠실역')
-        categories (list of str): 검색할 장소 카테고리 목록입니다.
-        사용 가능한 전체 카테고리: '전시관', '기념관', '전문매장/상가', '5일장', '특산물판매점', '백화점', '상설시장', '문화전수시설', '문화원', '서양식', '건축/조형물', '음식점&카페', '박물관', '컨벤션센터', '역사관광지', '복합 레포츠', '공예/공방', '이색음식점', '영화관', '산업관광지', '중식', '문화시설', '쇼핑', '수상 레포츠', '관광지', '육상 레포츠', '학교', '관광자원', '스키(보드) 렌탈샵', '대형서점', '휴양관광지', '외국문화원', '자연관광지', '레포츠', '한식', '일식', '도서관', '체험관광지', '카페/전통찻집', '면세점', '공연장', '미술관/화랑'
-    Returns:
-        list: 조건에 부합하는 장소의 UUID 리스트 (예: ['uuid1', 'uuid2', ...])
-
-    Example:
-        >>> elastic_search('종로', ['음식점&카페', '문화시설'])
-        ['a1b2c3', 'd4e5f6']
-    """
-    if not region or not categories:
-        return []
-
-    print(f"--- 엘라스틱 검색: region={region}, categories={tuple(sorted(categories))} ---")
-
-    region_encoded = quote(region)
-    category_encoded = '&'.join([f"categories={quote(cat)}" for cat in categories])
-    url = f"http://15.164.50.188:9201/api/place/search/llm-tool?region={region_encoded}&{category_encoded}"
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=10)
-        response.raise_for_status()
-        response_json = response.json()
-        uuid_list = response_json.get('uuids', [])
-        print(f"--- 엘라스틱 검색 결과: {len(uuid_list)}개 장소 ---")
-        return uuid_list
-    except httpx.RequestError as e:
-        print(f"엘라스틱 검색 API 호출 오류: {e}")
-        return []
 
 
 class LangchainAgentService:
@@ -85,47 +46,91 @@ class LangchainAgentService:
         )
         print("--- ChromaDB 로드 완료 ---")
         
-        self.tools = [elastic_search, self._create_search_with_filtering_tool()]
+        self.tools = [self._create_combined_search_tool()]
         self.prompt = self._create_prompt_template()
         self.user_memories = {}
         self._lock = threading.Lock()
 
-    def _create_search_with_filtering_tool(self):
+    def _create_combined_search_tool(self):
         @tool
-        async def search_with_filtering(query: str, place_uuids: List[str]) -> List[Dict[str, Any]]:
+        async def search_course(query: str, region: str, categories: List[str]) -> List[Dict[str, Any]]:
             """
-            임베딩 검색 도구
+            사용자의 쿼리를 기반으로 지역과 카테고리에 맞는 장소를 검색하고,
+            상세 쿼리를 사용해 가장 관련성 높은 장소의 상세 정보를 반환하는 통합 검색 도구입니다.
 
-                입력받은 UUID 리스트와 사용자의 쿼리문 만을 기반으로,
-                임베딩 유사도 검색을 수행하여 관련 장소 정보를 반환합니다.
+            이 도구는 두 단계로 작동합니다:
+            1. 'elastic_search' 와 유사한 기능: '지역(region)'과 '카테고리(categories)'로 장소 UUID 목록을 가져옵니다.
+            2. 'search_with_filtering' 와 유사한 기능: 가져온 UUID 목록과 원본 '쿼리(query)'를 사용해 벡터 검색으로 상세 정보를 필터링하고 반환합니다.
 
-                Args:
-                    query (str): 사용자가 입력한 쿼리문 (예: '홍대에서 감성 카페 갔다가 전시 보는 코스 추천')
-                    place_uuids (list of str): 검색 대상 장소의 UUID 리스트
+            Args:
+                query (str): 사용자가 입력한 전체 쿼리 (예: '홍대에서 감성 카페 갔다가 전시 보는 코스 추천')
+                region (str): 사용자가 명시한 지역명 (예: '강남', '홍대')
+                categories (list of str): 검색할 장소 카테고리 목록입니다.
+                사용 가능한 전체 카테고리: '전시관', '기념관', '전문매장/상가', '5일장', '특산물판매점', '백화점', '상설시장', '문화전수시설', '문화원', '서양식', '건축/조형물', '음식점&카페', '박물관', '컨벤션센터', '역사관광지', '복합 레포츠', '공예/공방', '이색음식점', '영화관', '산업관광지', '중식', '문화시설', '쇼핑', '수상 레포츠', '관광지', '육상 레포츠', '학교', '관광자원', '스키(보드) 렌탈샵', '대형서점', '휴양관광지', '외국문화원', '자연관광지', '레포츠', '한식', '일식', '도서관', '체험관광지', '카페/전통찻집', '면세점', '공연장', '미술관/화랑'
 
-                Returns:
-                    list: 임베딩 유사도 기반으로 필터링된 장소 정보 리스트
-
-                Example:
-                    >>> search_with_filtering('감성적인 카페', ['uuid1', 'uuid2'])
-                    [{'name': 'OO레스토랑', 'address': '서울...', ...}, ...]
+            Returns:
+                list: 필터링된 장소 정보 리스트. 각 장소는 상세 정보를 담은 딕셔너리입니다.
+                      (예: [{'name': 'OO카페', 'address': '서울...', ...}, ...])
             """
-            if not query or not place_uuids:
+            # 1. Elastic Search to get UUIDs
+            if not region or not categories:
                 return []
+
+            print(f"--- 엘라스틱 검색 (카테고리별 호출): region={region}, categories={tuple(sorted(categories))} ---")
+
+            region_encoded = quote(region)
+            all_place_uuids = set()
+
+            async with httpx.AsyncClient() as client:
+                tasks = []
+                for category in categories:
+                    category_encoded = quote(category)
+                    url = f"http://15.164.50.188:9201/api/place/search/llm-tool?region={region_encoded}&categories={category_encoded}"
+                    tasks.append(client.get(url, timeout=10))
+
+                api_responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for response in api_responses:
+                    if isinstance(response, httpx.Response):
+                        try:
+                            response.raise_for_status()
+                            response_json = response.json()
+                            uuids = response_json.get('uuids', [])
+                            all_place_uuids.update(uuids)
+                        except (httpx.HTTPStatusError, json.JSONDecodeError) as e:
+                            print(f"API 응답 처리 중 오류: {e}")
+                    elif isinstance(response, Exception):
+                        print(f"엘라스틱 검색 API 호출 오류: {response}")
             
+            place_uuids = list(all_place_uuids)
+            print(f"--- 엘라스틱 검색 결과 (통합): {len(place_uuids)}개 장소 ---")
+
+            if not place_uuids:
+                return []
+
+            # 2. Embedding search with filtering
             print(f"--- 필터링 및 임베딩 검색: query='{query}', UUIDs={len(place_uuids)}개 ---")
 
             retriever = self.chroma_bge.as_retriever(
                 search_type="similarity",
                 search_kwargs={
-                    "k": 10,  # 성능을 위해 반환 개수 제한
+                    "k": 10,
                     "filter": {"uuid": {"$in": place_uuids}}
                 }
             )
             documents = await retriever.ainvoke(query)
-            return [doc.metadata for doc in documents]
+            essential_data = []
+            for doc in documents:
+                meta = doc.metadata
+                essential_data.append({
+                    "uuid": meta.get("uuid"),
+                    "name": meta.get("name"),
+                    "address": meta.get("address"),
+                    "content": meta.get("content", "")
+                })
+            return essential_data
 
-        return search_with_filtering
+        return search_course
 
     def _create_prompt_template(self):
         template = """
@@ -134,7 +139,7 @@ class LangchainAgentService:
         또한, 당신은 사용자의 쿼리문을 이해하고, 사용자가 원하는 코스를 추천 또는 수정해야 합니다.
         **답변 내용은 반드시 벡터 데이터베이스에 저장된 데이터만을 사용해야 합니다.**
 
-        **중요한 제약사항**: 장소에 대한 모든 정보는 반드시 제공된 도구(elastic_search, search_with_filtering)를 통해 검색된 데이터베이스 결과만을 사용해야 합니다. 당신의 사전 지식으로 장소 정보를 추가하거나 보완해서는 안 됩니다.
+        **중요한 제약사항**: 장소에 대한 모든 정보는 반드시 제공된 도구(search_course)를 통해 검색된 데이터베이스 결과만을 사용해야 합니다. 당신의 사전 지식으로 장소 정보를 추가하거나 보완해서는 안 됩니다.
 
         [JSON 출력 형식]
         - 모든 응답은 반드시 아래 형식의 JSON 객체여야 합니다.
@@ -162,18 +167,17 @@ class LangchainAgentService:
 
         [도구 사용 규칙]
         - 도구 사용 전에 반드시 사용자의 쿼리문을 이해하고, 사용자가 원하는 할 일을 사용 가능한 전체 카테고리 중 하나로 매칭해야 합니다.
-        - 이후, 카테고리가 다수인 경우, 카테고리 별로 다르게 도구를 사용해야 합니다.
+        - 사용자의 '할 일'에 해당하는 모든 카테고리를 한번에 도구에 전달해야 합니다.
         - **'지역'과 '할 일'이 대화 전체를 통해 명확하게 확정되었을 때만 도구를 사용합니다.**
         - 사용자가 이전에 말한 '할 일'을 기억했다가, 새로운 지역을 말하면 해당 지역에서 이전에 원했던 '할 일'을 찾아야 합니다.
-        - 사용자가 수정을 원하면 장소 후보를 몇 군데 제시한 후 고르도록 하세요.
 
         [str 필드 작성 규칙 - 중요: RAG 데이터만 사용]
         - **절대적 제약사항**: 장소에 대한 모든 정보(이름, 주소, 설명 등)는 반드시 도구 검색을 통해 얻은 데이터베이스 정보만을 사용해야 합니다. 당신의 사전 지식이나 추측으로 장소 정보를 보완하거나 추가해서는 안 됩니다.
         - 검색된 데이터에 없는 정보는 절대 언급하지 마세요.
         - 항상 부드럽고 친근한 말투로 작성합니다.
         - 코스 추천의 시작은 즐거운 소개 문구로 시작합니다.
-        - 각 장소 정보는 반드시 search_with_filtering 도구로 검색된 결과에서만 가져와서 이름 - 주소 - 설명 형식으로 작성합니다.
-        - 장소는 항상 번호로 구분하세요. 이 순서는 사용자가 원하는 순서를 따라야 합니다. (예시: 1. 상호명 - 주소<n>장소에 대한 설명)
+        - 각 장소 정보는 반드시 search_course 도구로 검색된 결과에서만 가져와서 이름 - 주소 - 설명 형식으로 작성합니다.
+        - 장소는 항상 번호로 구분하세요. 이 순서는 사용자가 원하는 순서를 따라야 합니다. (예시: <br>1. 상호명 - 주소<n>장소에 대한 설명)
         - 주소와 설명 사이는 `<n>`으로 구분하고, 장소와 장소 사이는 반드시 `<br>` 하나로만 구분합니다. 예를 들어서, 1. 상호명 - 주소<n>장소에 대한 설명<br>2. 상호명 - 주소<n>장소에 대한 설명<br>3. 상호명 - 주소<n>장소에 대한 설명<br> 이런 식으로 구분합니다.
         - `<n>`과 `<br>` 외의 마크다운은 사용하지 않습니다.
         """
