@@ -16,8 +16,6 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_community.vectorstores import Chroma
-from langchain.globals import set_llm_cache
-from langchain.cache import InMemoryCache
 
 load_dotenv()
 
@@ -68,7 +66,7 @@ class LangchainAgentService:
             raise ValueError("OpenAI API 키가 필요합니다.")
         os.environ["OPENAI_API_KEY"] = openai_api_key
         
-        self.llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+        self.llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
         
         # 임베딩 모델 초기화
         self.model_bge = HuggingFaceEmbeddings(
@@ -190,7 +188,7 @@ class LangchainAgentService:
         with self._lock:
             if user_id not in self.user_memories:
                 self.user_memories[user_id] = ConversationBufferWindowMemory(
-                    k=10,  # 최근 10개의 대화만 유지
+                    k=5,
                     memory_key="chat_history",
                     return_messages=True,
                 )
