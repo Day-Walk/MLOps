@@ -31,7 +31,6 @@ services:
     environment:
       - TZ=Asia/Seoul
       - PYTHONUNBUFFERED=1
-      - PRED_PATH=/app/app/services/python_schedule/data/crowd_prediction
     volumes:
       - ./app:/app/app
       - /home/ubuntu/MLOps/data:/app/data
