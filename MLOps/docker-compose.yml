@@ -20,5 +20,23 @@ services:
     networks:
       - mlops-network
 
+  congestion-scheduler:
+    build:
+      context: ..
+      dockerfile: MLOps/Dockerfile
+    container_name: congestion-scheduler
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PRED_PATH=/app/app/services/python_schedule/data/crowd_prediction
+    volumes:
+      - ./app:/app/app
+      - /home/ubuntu/MLOps/data:/app/data
+    restart: unless-stopped
+    networks:
+      - mlops-network
+    command: ["python", "app/services/predict_cong_service.py"]
+
 networks:
   mlops-network:

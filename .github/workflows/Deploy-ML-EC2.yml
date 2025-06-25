@@ -95,13 +95,5 @@ jobs:
             docker rmi $(docker images -q) -f
             docker compose up -d --build
           fi
-          
-          # Congestion Service 배포 및 재시작
-          echo "Deploying and restarting congestion service..."
-          sudo chmod +x MLOps/app/services/run_congestion_service.sh
-          sudo cp MLOps/app/services/congestion.service /etc/systemd/system/congestion.service
-          sudo systemctl daemon-reload
-          sudo systemctl restart congestion.service
-          sudo systemctl status congestion.service
 
           echo "Deployment completed successfully!"
