@@ -1,0 +1,5 @@
+outs:
+- md5: 5faa6d5e8903664f09d4442422eb44a8
+  size: 10446
+  hash: md5
+  path: seoul_area_info.csv
