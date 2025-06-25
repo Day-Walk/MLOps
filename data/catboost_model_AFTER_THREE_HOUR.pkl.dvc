@@ -1,0 +1,5 @@
+outs:
+- md5: b1d0a07eb981cdb992da449e9bfff89f
+  size: 4159255
+  hash: md5
+  path: catboost_model_AFTER_THREE_HOUR.pkl
