@@ -95,6 +95,7 @@ class KoreanContentElasticsearch:
                         "type": "text",
                         "analyzer": "my_nori_analyzer",
                         "search_analyzer": "my_nori_analyzer",
+                        "copy_to": "categories",
                         "fields": {
                             "keyword": {
                                 "type": "keyword",
@@ -106,6 +107,7 @@ class KoreanContentElasticsearch:
                         "type": "text",
                         "analyzer": "my_nori_analyzer",
                         "search_analyzer": "my_nori_analyzer",
+                        "copy_to": "categories",
                         "fields": {
                             "keyword": {
                                 "type": "keyword",
@@ -117,21 +119,25 @@ class KoreanContentElasticsearch:
                         "type": "text",
                         "analyzer": "my_nori_analyzer",
                         "search_analyzer": "my_nori_analyzer",
+                        "copy_to": "addresses",
                     },
                     "dong": {
                         "type": "text",
                         "analyzer": "my_nori_analyzer",
                         "search_analyzer": "my_nori_analyzer",
+                        "copy_to": "addresses",
                     },
                     "ro": {
                         "type": "text",
                         "analyzer": "my_nori_analyzer",
                         "search_analyzer": "my_nori_analyzer",
+                        "copy_to": "addresses",
                     },
                     "station": {
                         "type": "text",
                         "analyzer": "my_nori_analyzer",
                         "search_analyzer": "my_nori_analyzer",
+                        "copy_to": "addresses",
                         "fields": {
                             "keyword": {
                                 "type": "keyword",
@@ -311,7 +317,7 @@ if __name__ == '__main__':
     es_client = KoreanContentElasticsearch()
 
     # 인덱스 이름 설정
-    INDEX_NAME = "place_data"
+    INDEX_NAME = "place_data_v2"
     
     # JSON 파일 경로 설정
     JSON_FILE_PATH = "data/place_json_preprocessing.json"
