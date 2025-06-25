@@ -19,7 +19,7 @@ def get_crowd_prediction(hour: int):
     """
     try:
         # 1. 대상 파일명 생성
-        target_timestamp = (datetime.now() + timedelta(hours=1)).strftime("%Y%m%d%H")
+        target_timestamp = (datetime.now()).strftime("%Y%m%d%H")
         filename = f"congestion_predictions_{target_timestamp}_{hour}.csv"
         file_path = os.path.join(PRED_PATH, filename)
         
