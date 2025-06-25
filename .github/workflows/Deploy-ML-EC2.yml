@@ -31,12 +31,23 @@ jobs:
         DEEPFM_TRAIN_MODEL_PATH: ${{ secrets.DEEPFM_TRAIN_MODEL_PATH }}
         DEEPFM_TRAIN_ENCODERS_PATH: ${{ secrets.DEEPFM_TRAIN_ENCODERS_PATH }}
         DEEPFM_TRAIN_KEY2INDEX_PATH: ${{ secrets.DEEPFM_TRAIN_KEY2INDEX_PATH }}
+
+        SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
+        PLACE_PATH: ${{ secrets.PLACE_PATH }}
+
+        ONE_HOUR_MODEL_PATH: ${{ secrets.ONE_HOUR_MODEL_PATH }}
+        TWO_HOUR_MODEL_PATH: ${{ secrets.TWO_HOUR_MODEL_PATH }}
+        THREE_HOUR_MODEL_PATH: ${{ secrets.THREE_HOUR_MODEL_PATH }}
+        SIX_HOUR_MODEL_PATH: ${{ secrets.SIX_HOUR_MODEL_PATH }}
+        TWELVE_HOUR_MODEL_PATH: ${{ secrets.TWELVE_HOUR_MODEL_PATH }}
+
+        PRED_PATH: ${{ secrets.PRED_PATH }}
       with:
         host: ${{ secrets.EC2_HOST_ML }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         port: 22
-        envs: OPENAI_API_KEY,VECTORDB_PATH,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_DATABASE,CLICK_LOG,DEEPFM_TRAIN_MODEL_PATH,DEEPFM_TRAIN_ENCODERS_PATH,DEEPFM_TRAIN_KEY2INDEX_PATH
+        envs: OPENAI_API_KEY,VECTORDB_PATH,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_DATABASE,CLICK_LOG,DEEPFM_TRAIN_MODEL_PATH,DEEPFM_TRAIN_ENCODERS_PATH,DEEPFM_TRAIN_KEY2INDEX_PATH,SEOUL_API_KEY,PLACE_PATH,ONE_HOUR_MODEL_PATH,TWO_HOUR_MODEL_PATH,THREE_HOUR_MODEL_PATH,SIX_HOUR_MODEL_PATH,TWELVE_HOUR_MODEL_PATH,PRED_PATH
         script: |
           # 프로젝트 디렉터리로 이동
           cd ~/MLOps
@@ -66,6 +77,16 @@ jobs:
           echo "DB_USER=$DB_USER" >> .env
           echo "DB_PASSWORD=$DB_PASSWORD" >> .env
           echo "DB_DATABASE=$DB_DATABASE" >> .env
+
+          echo "ONE_HOUR_MODEL_PATH=$ONE_HOUR_MODEL_PATH" >> .env
+          echo "TWO_HOUR_MODEL_PATH=$TWO_HOUR_MODEL_PATH" >> .env
+          echo "THREE_HOUR_MODEL_PATH=$THREE_HOUR_MODEL_PATH" >> .env
+          echo "SIX_HOUR_MODEL_PATH=$SIX_HOUR_MODEL_PATH" >> .env
+          echo "TWELVE_HOUR_MODEL_PATH=$TWELVE_HOUR_MODEL_PATH" >> .env
+
+          echo "SEOUL_API_KEY=$SEOUL_API_KEY" >> .env
+          echo "PLACE_PATH=$PLACE_PATH" >> .env
+          echo "PRED_PATH=$PRED_PATH" >> .env
           
           # Docker 컨테이너 재시작 (docker-compose가 있다면)
           if [ -f docker-compose.yml ]; then
@@ -75,4 +96,12 @@ jobs:
             docker compose up -d --build
           fi
           
+          # Congestion Service 배포 및 재시작
+          echo "Deploying and restarting congestion service..."
+          sudo chmod +x MLOps/app/services/run_congestion_service.sh
+          sudo cp MLOps/app/services/congestion.service /etc/systemd/system/congestion.service
+          sudo systemctl daemon-reload
+          sudo systemctl restart congestion.service
+          sudo systemctl status congestion.service
+
           echo "Deployment completed successfully!"
