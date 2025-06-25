@@ -85,8 +85,8 @@ class ElasticsearchService:
                 "multi_match": {
                     "query": query,
                     "fields": [
-                        "name^4",
-                        "alias^3",
+                        "name^2",
+                        "alias^2",
                         "categories^2",
                         "addresses^2",
                         "content"
