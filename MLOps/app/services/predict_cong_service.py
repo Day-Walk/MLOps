@@ -147,7 +147,6 @@ if __name__ == "__main__":
     print("Congestion prediction service started.")
     print("Initial prediction run...")
     predict_and_save_all_locations()
-
     schedule.every().hour.at(":50").do(predict_and_save_all_locations)
 
     print("Scheduler is running. Waiting for the next scheduled run at XX:50.")
