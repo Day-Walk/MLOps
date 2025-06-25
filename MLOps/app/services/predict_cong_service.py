@@ -112,12 +112,16 @@ def predict_and_save_all_locations():
         print("No predictions were made.")
         return
 
+    # PRED_PATH가 설정되지 않았을 경우에 대한 예외 처리
+    if not PRED_PATH:
+        print("❌ PRED_PATH environment variable is not set. Cannot save files.")
+        return
+
+    # 저장 경로가 존재하는지 확인하고, 없으면 생성합니다.
+    os.makedirs(PRED_PATH, exist_ok=True)
+
     # 타임스탬프 (현재 시간 + 1시간)
     timestamp = (datetime.now() + timedelta(hours=1)).strftime("%Y%m%d%H")
-    output_dir = PRED_PATH if PRED_PATH and os.path.isdir(PRED_PATH) else os.path.dirname(__file__)
-
-    # 저장된 파일 경로들을 저장할 리스트
-    saved_files = []
 
     for name, predictions_list in all_predictions.items():
         if not predictions_list:
@@ -135,13 +139,10 @@ def predict_and_save_all_locations():
 
         file_suffix = MODEL_FILE_SUFFIX.get(name)
         output_filename = f"congestion_predictions_{timestamp}_{file_suffix}.csv"
-        output_path = os.path.join(output_dir, output_filename)
+        output_path = os.path.join(PRED_PATH, output_filename)
         
         final_df.to_csv(output_path, index=False, encoding='utf-8-sig')
         print(f"✅ Predictions for '{name}' saved to: {output_path}")
-        saved_files.append(output_path)
-    
-    return saved_files
 
 if __name__ == "__main__":
     print("Congestion prediction service started.")
