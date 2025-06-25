@@ -66,7 +66,7 @@ class ElasticsearchService:
             raise ValueError("ES_PORT 환경 변수는 반드시 숫자여야 합니다.")
 
         self.es = Elasticsearch([{'host': host, 'port': port, 'scheme': 'http'}])
-        self.index_name = "place_data"
+        self.index_name = "place_data_v2"
         self.log_index_name = "chatbot_log"
         self.click_log_index_name = "click_log"
         self.search_log_index_name = "search_log"
@@ -79,14 +79,19 @@ class ElasticsearchService:
             return False
 
     def search_places(self, query: str, max_results: int = 23, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """장소 검색"""
+        """장소 검색 (copy_to 필드와 multi_match로 고도화)"""
         search_body = {
             "query": {
-                "match": {
-                    "name": {
-                        "query": query,
-                        "fuzziness": "AUTO"
-                    }
+                "multi_match": {
+                    "query": query,
+                    "fields": [
+                        "name^4",
+                        "alias^3",
+                        "categories^2",
+                        "addresses^2",
+                        "content"
+                    ],
+                    "fuzziness": "AUTO"
                 }
             },
             "sort": [{"_score": {"order": "desc"}}],
