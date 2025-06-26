@@ -55,7 +55,7 @@ jobs:
           # 최신 코드 받기
           git checkout main
           git fetch origin main
-          git pull origin main
+          git pull origin main --no-rebase
           
           # dvc s3 연결
           dvc remote modify --local storage access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
