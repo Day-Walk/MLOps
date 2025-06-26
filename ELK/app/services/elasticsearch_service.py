@@ -1,7 +1,7 @@
 import pandas as pd
 from elasticsearch import Elasticsearch
 from typing import List, Dict, Any, Tuple, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
 from dotenv import load_dotenv
@@ -66,7 +66,7 @@ class ElasticsearchService:
             raise ValueError("ES_PORT 환경 변수는 반드시 숫자여야 합니다.")
 
         self.es = Elasticsearch([{'host': host, 'port': port, 'scheme': 'http'}])
-        self.index_name = "place_data"
+        self.index_name = "place_data_v2"
         self.log_index_name = "chatbot_log"
         self.click_log_index_name = "click_log"
         self.search_log_index_name = "search_log"
@@ -79,14 +79,19 @@ class ElasticsearchService:
             return False
 
     def search_places(self, query: str, max_results: int = 23, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """장소 검색"""
+        """장소 검색 (copy_to 필드와 multi_match로 고도화)"""
         search_body = {
             "query": {
-                "match": {
-                    "name": {
-                        "query": query,
-                        "fuzziness": "AUTO"
-                    }
+                "multi_match": {
+                    "query": query,
+                    "fields": [
+                        "name^2",
+                        "alias^2",
+                        "categories^2",
+                        "addresses^2",
+                        "content"
+                    ],
+                    "fuzziness": "AUTO"
                 }
             },
             "sort": [{"_score": {"order": "desc"}}],
@@ -113,7 +118,7 @@ class ElasticsearchService:
                 "userId": user_id,
                 "query": query,
                 "placeIds": place_ids,
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(timezone(timedelta(hours=9))).isoformat()
             }
             self.insert_search_log(log_data)
             
@@ -124,20 +129,16 @@ class ElasticsearchService:
         LLM 도구를 위한 장소 검색.
         지역과 카테고리 정보를 바탕으로 장소 uuid 목록과 총 개수를 반환합니다.
         """
-        query_body = {
-            "query": {
-                "bool": {
-                    "must": [],
-                    "filter": []
-                }
-            },
-            "size": 100,
-            "_source": ["uuid"],
-            "track_total_hits": True
+        # 1. bool 쿼리를 기본 쿼리로 정의
+        base_query = {
+            "bool": {
+                "must": [],
+                "filter": []
+            }
         }
 
         if region:
-            query_body["query"]["bool"]["must"].append({
+            base_query["bool"]["must"].append({
                 "multi_match": {
                     "query": region,
                     "fields": ["gu", "dong", "ro", "station", "address"]
@@ -145,7 +146,7 @@ class ElasticsearchService:
             })
 
         if categories:
-            query_body["query"]["bool"]["filter"].append({
+            base_query["bool"]["filter"].append({
                 "bool": {
                     "should": [
                         {"terms": {"category.keyword": categories}},
@@ -154,6 +155,24 @@ class ElasticsearchService:
                     "minimum_should_match": 1
                 }
             })
+            
+        # 2. function_score 쿼리로 기본 쿼리를 감싸고, random_score 함수를 추가
+        query_body = {
+            "query": {
+                "function_score": {
+                    "query": base_query,
+                    "functions": [
+                        {
+                            "random_score": {}
+                        }
+                    ],
+                    "boost_mode": "multiply" # 원래 점수와 랜덤 점수를 곱하여 자연스럽게 섞음
+                }
+            },
+            "size": 100,
+            "_source": ["uuid"],
+            "track_total_hits": True
+        }
             
         response = self.es.search(index=self.index_name, body=query_body)
         
@@ -203,7 +222,7 @@ class ElasticsearchService:
         """챗봇 로그 데이터를 Elasticsearch에 삽입"""
         try:
             # 문서 ID 생성 (타임스탬프 + userId 조합)
-            doc_id = f"{log_data['userId']}_{int(datetime.now().timestamp())}"
+            doc_id = f"{log_data['userId']}_{int(datetime.now(timezone(timedelta(hours=9))).timestamp())}"
             
             # Elasticsearch에 문서 삽입
             response = self.es.index(
@@ -276,7 +295,7 @@ class ElasticsearchService:
         """클릭 로그 데이터를 Elasticsearch에 삽입"""
         try:
             # 문서 ID 생성 (타임스탬프 + userId + placeId 조합)
-            doc_id = f"{log_data['userId']}_{log_data['placeId']}_{int(datetime.now().timestamp())}"
+            doc_id = f"{log_data['userId']}_{log_data['placeId']}_{int(datetime.now(timezone(timedelta(hours=9))).timestamp())}"
             
             # Elasticsearch에 문서 삽입
             response = self.es.index(
@@ -363,7 +382,7 @@ class ElasticsearchService:
         """검색 로그 데이터를 Elasticsearch에 삽입"""
         try:
             # 문서 ID 생성 (타임스탬프 + userId 조합)
-            doc_id = f"{log_data['userId']}_{int(datetime.now().timestamp())}"
+            doc_id = f"{log_data['userId']}_{int(datetime.now(timezone(timedelta(hours=9))).timestamp())}"
             
             # Elasticsearch에 문서 삽입
             response = self.es.index(
