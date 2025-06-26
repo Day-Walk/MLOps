@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List
 
 from app.schema.search_schemas import SearchResponse, LLMToolResponse, Place
@@ -78,7 +78,7 @@ async def insert_chatbot_log(log_data: LogRequest):
             )
         
         log_dict = log_data.dict()
-        log_dict['createAt'] = datetime.now().isoformat()
+        log_dict['createAt'] = datetime.now(timezone(timedelta(hours=9))).isoformat()
         success = elasticsearch_service.insert_chatbot_log(log_dict)
         
         if success:
