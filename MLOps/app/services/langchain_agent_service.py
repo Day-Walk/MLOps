@@ -185,7 +185,7 @@ class LangchainAgentService:
         with self._lock:
             if user_id not in self.user_memories:
                 self.user_memories[user_id] = ConversationBufferWindowMemory(
-                    k=5,
+                    k=6,
                     memory_key="chat_history",
                     return_messages=True,
                 )
