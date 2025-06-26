@@ -7,6 +7,7 @@ COPY MLOps/requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install -U langchain-chroma
+RUN apt-get update && apt-get install -y libgomp1
 
 # app 디렉토리와 ELK 디렉토리 복사
 COPY MLOps/app ./app
