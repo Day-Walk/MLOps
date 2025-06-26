@@ -1,7 +1,7 @@
 import pandas as pd
 from elasticsearch import Elasticsearch
 from typing import List, Dict, Any, Tuple, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
 from dotenv import load_dotenv
@@ -118,7 +118,7 @@ class ElasticsearchService:
                 "userId": user_id,
                 "query": query,
                 "placeIds": place_ids,
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(timezone(timedelta(hours=9))).isoformat()
             }
             self.insert_search_log(log_data)
             
@@ -222,7 +222,7 @@ class ElasticsearchService:
         """챗봇 로그 데이터를 Elasticsearch에 삽입"""
         try:
             # 문서 ID 생성 (타임스탬프 + userId 조합)
-            doc_id = f"{log_data['userId']}_{int(datetime.now().timestamp())}"
+            doc_id = f"{log_data['userId']}_{int(datetime.now(timezone(timedelta(hours=9))).timestamp())}"
             
             # Elasticsearch에 문서 삽입
             response = self.es.index(
@@ -295,7 +295,7 @@ class ElasticsearchService:
         """클릭 로그 데이터를 Elasticsearch에 삽입"""
         try:
             # 문서 ID 생성 (타임스탬프 + userId + placeId 조합)
-            doc_id = f"{log_data['userId']}_{log_data['placeId']}_{int(datetime.now().timestamp())}"
+            doc_id = f"{log_data['userId']}_{log_data['placeId']}_{int(datetime.now(timezone(timedelta(hours=9))).timestamp())}"
             
             # Elasticsearch에 문서 삽입
             response = self.es.index(
@@ -382,7 +382,7 @@ class ElasticsearchService:
         """검색 로그 데이터를 Elasticsearch에 삽입"""
         try:
             # 문서 ID 생성 (타임스탬프 + userId 조합)
-            doc_id = f"{log_data['userId']}_{int(datetime.now().timestamp())}"
+            doc_id = f"{log_data['userId']}_{int(datetime.now(timezone(timedelta(hours=9))).timestamp())}"
             
             # Elasticsearch에 문서 삽입
             response = self.es.index(
