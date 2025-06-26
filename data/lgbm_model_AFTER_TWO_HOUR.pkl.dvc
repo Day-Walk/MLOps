@@ -1,0 +1,5 @@
+outs:
+- md5: 722fcf4db923f26fdf54f149c6ed4fad
+  size: 12297474
+  hash: md5
+  path: lgbm_model_AFTER_TWO_HOUR.pkl
