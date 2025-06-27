@@ -1,9 +1,9 @@
 from fastapi import FastAPI, HTTPException, Query
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
-from typing import List
+from typing import List, Dict
 
-from app.schema.search_schemas import SearchResponse, LLMToolResponse, Place
+from app.schema.search_schemas import SearchResponse, LLMToolResponse, Place, MostClickedPlace
 from app.services.elasticsearch_service import ElasticsearchService
 from app.schema.log_schemas import LogRequest, LogResponse, ClickLogRequest, ClickLogResponse
 
@@ -189,6 +189,20 @@ async def get_place_click_count(place_id: str):
             "placeId": place_id,
             "clickCount": count
         }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/most-click-place", response_model=List[MostClickedPlace])
+async def get_most_clicked_places():
+    """오늘 새벽 5시부터 가장 많이 클릭된 장소 UUID 목록 조회 API"""
+    try:
+        if not elasticsearch_service.is_connected():
+            raise HTTPException(status_code=503, detail="Elasticsearch 연결 실패")
+        
+        places_data = elasticsearch_service.get_most_clicked_places_today()
+        
+        return places_data
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
