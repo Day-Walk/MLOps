@@ -17,3 +17,7 @@ class LLMToolResponse(BaseModel):
     success: bool
     uuids: List[str]
     total: int
+
+class MostClickedPlace(BaseModel):
+    uuid: str
+    clicks: int
