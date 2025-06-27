@@ -125,6 +125,7 @@ class LangchainAgentService:
                 essential_data.append({
                     "uuid": meta.get("uuid"),
                     "name": meta.get("name"),
+                    "area": meta.get("area"),
                     "address": meta.get("address"),
                     "content": meta.get("content", "")
                 })
@@ -160,7 +161,7 @@ class LangchainAgentService:
         코스 추천: 특별한 요청이 없으면 카테고리당 1곳을 추천하고, 코스 전체에 포함되는 장소는 최대 6개로 제한해.
         장소 추천: 특정한 장소만 추천해줄 때는 최대 6개로 제한해.
         내용 형식:
-        각 장소는 반드시 예시와 같은 형식으로 작성해.
+        각 장소는 반드시 예시와 같은 형식으로 작성해. <n>, <br>를 제외하고 절대 마크다운 형식을 사용하지 마.
         (예시: <br>1. 상호명 - 주소<n>설명<br>2. 상호명 - 주소<n>설명<br>3. 상호명 - 주소<n>설명)
         **필수 규칙**
         - 지역과 카테고리의 정보가 충족되면, 즉시 코스나 장소를 추천하는 응답을 해야해.

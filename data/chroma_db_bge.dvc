@@ -1,6 +1,6 @@
 outs:
-- md5: 604fc684f03c98f8c31ef3a0e13a544b.dir
+- md5: 11f5acce78294ca54c6aba954eaf1965.dir
   nfiles: 6
   hash: md5
   path: chroma_db_bge
-  size: 92402917
+  size: 92755173

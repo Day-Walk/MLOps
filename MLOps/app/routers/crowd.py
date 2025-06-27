@@ -12,10 +12,11 @@ if not PRED_PATH:
     print("PRED_PATH is not set")
 
 @router.get("/crowd", response_model=CrowdResponse)
-def get_crowd_prediction(hour: int):
+def get_crowd_prediction(hour: int, area: str = "all"):
     """
     ## 시간대별 혼잡도 예측 결과 조회 API
     - **hour**: 조회할 예측 시간 (1, 2, 3, 6, 12 중 하나)
+    - **area**: 조회할 지역 (all, 서울, 경기, 인천, 강원, 충청, 전라, 경상, 제주 중 하나)
     """
     try:
         # 1. 대상 파일명 생성
@@ -31,7 +32,13 @@ def get_crowd_prediction(hour: int):
 
         df = pd.read_csv(file_path)
 
-        # 3. 응답 데이터 형식으로 변환
+        # 3. 'area' 파라미터에 따른 데이터 필터링
+        if area != "all":
+            df = df[df['AREA_NM'] == area]
+            if df.empty:
+                raise HTTPException(status_code=404, detail=f"No data found for area: {area}")
+
+        # 4. 응답 데이터 형식으로 변환
         crowd_info_list = []
         for _, row in df.iterrows():
             crowd_info_list.append(CrowdInfo(
