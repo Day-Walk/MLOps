@@ -90,8 +90,8 @@ def predict_and_save_all_locations():
 
             # 2. 모델별 예측 실행
             for name, model in models.items():
-                final_predict_df = predict_df.reindex(columns=model.feature_names_, fill_value=0)
-                prediction_num = int(model.predict(final_predict_df)[0][0])
+                final_predict_df = predict_df.reindex(columns=model.booster_.feature_name(), fill_value=0)
+                prediction_num = int(model.predict(final_predict_df)[0])
                 prediction_str = CONGEST_LVL_MAP.get(prediction_num, "Unknown")
                 
                 location_result = {
