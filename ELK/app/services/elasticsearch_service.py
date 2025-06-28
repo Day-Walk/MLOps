@@ -79,27 +79,120 @@ class ElasticsearchService:
             return False
 
     def search_places(self, query: str, max_results: int = 23, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """장소 검색 (copy_to 필드와 multi_match로 고도화)"""
+        """장소 검색"""
+        
+        # '맛집' 키워드가 포함된 경우, 쿼리 내에서 '맛집'을 '음식점&카페'로 변환
+        if '맛집' in query:
+            query = query.replace('맛집', '음식점&카페')
+
+        ALL_CATEGORIES = [
+            '전시관', '기념관', '전문매장/상가', '5일장', '특산물판매점', '백화점', '상설시장', 
+            '문화전수시설', '문화원', '서양식', '건축/조형물', '음식점&카페', '박물관', 
+            '컨벤션센터', '역사관광지', '복합 레포츠', '공예/공방', '이색음식점', '영화관', 
+            '산업관광지', '중식', '문화시설', '쇼핑', '수상 레포츠', '관광지', '육상 레포츠', 
+            '학교', '관광자원', '스키(보드) 렌탈샵', '대형서점', '휴양관광지', '외국문화원', 
+            '자연관광지', '레포츠', '한식', '일식', '도서관', '체험관광지', '카페/전통찻집', 
+            '면세점', '공연장', '미술관/화랑'
+        ]
+        
+        # 0. 쿼리 토큰 분리 및 필터링 조건 준비
+        tokens = query.split()
+        filter_clause = []
+
+        # 카테고리 필터링 로직 추가
+        temp_query = query
+        query_categories = []
+        # 긴 카테고리명부터 확인하여 부분 일치 문제를 방지
+        sorted_categories = sorted(ALL_CATEGORIES, key=len, reverse=True)
+        for category in sorted_categories:
+            if category in temp_query:
+                query_categories.append(category)
+                temp_query = temp_query.replace(category, "") # 중복 검사를 피하기 위해 찾은 카테고리 제거
+        
+        if query_categories:
+            filter_clause.append({"terms": {"categories.keyword": query_categories}})
+
+        # 1. 메인 쿼리를 단계적으로 구성합니다.
         search_body = {
             "query": {
-                "multi_match": {
-                    "query": query,
-                    "fields": [
-                        "name^2",
-                        "alias^2",
-                        "categories^2",
-                        "addresses^2",
-                        "content"
+                "bool": {
+                    "should": [
+                        # 1-1. 가장 정확한 이름 전체 일치 (최고 우선순위)
+                        {
+                            "match_phrase": {
+                                "name": { "query": query, "boost": 30 }
+                            }
+                        },
+                        
+                        # 1-2. [수정] '지역+이름/카테고리' 조합 검색 (높은 우선순위)
+                        # cross_fields 타입은 "강남구 파스타" 같은 쿼리에서 모든 단어가 각기 다른 필드에 걸쳐 존재해도 매칭시켜줍니다.
+                        {
+                            "multi_match": {
+                                "query": query,
+                                "fields": ["gu^2", "dong^2", "ro^2", "station^3", "name", "categories"],
+                                "type": "cross_fields",
+                                "operator": "and",
+                                "boost": 20
+                            }
+                        },
+
+                        # 1-3. '지역+메뉴' 조합을 위한 정확한 검색 (기존 로직)
+                        {
+                            "multi_match": {
+                                "query": query,
+                                "fields": ["name^4", "addresses^5", "station^5", "categories^3", "content^2", "alias^3"],
+                                "type": "cross_fields",
+                                "operator": "and",
+                                "boost": 10
+                            }
+                        },
+                        
+                        # 1-4. 오타 교정을 위한 유연한 검색 (기존 로직)
+                        {
+                            "multi_match": {
+                                "query": query,
+                                "fields": ["name", "addresses", "categories", "content", "alias", "station"],
+                                "type": "best_fields",
+                                "fuzziness": "AUTO",
+                                "operator": "or",
+                                "boost": 2
+                            }
+                        }
                     ],
-                    "fuzziness": "AUTO"
+                    "minimum_should_match": 1
                 }
-            },
+            }
+        }
+        
+        # '충정로' -> '충정로역' 매칭을 위한 station 필드 부분 일치 점수 추가
+        # 카테고리를 제외한 나머지 토큰(지역 관련 키워드)으로 쿼리 실행
+        non_category_query = temp_query.strip()
+        if non_category_query:
+            search_body["query"]["bool"]["should"].append(
+                {
+                    "match_phrase_prefix": {
+                        "station": {
+                            "query": non_category_query,
+                            "boost": 15
+                        }
+                    }
+                }
+            )
+
+        # 2. 준비된 필터링 조건이 있으면 쿼리에 추가합니다.
+        if filter_clause:
+            search_body["query"]["bool"]["filter"] = filter_clause
+
+        # 3. 최종 쿼리 조립
+        final_query = {
+            **search_body,
+            "min_score": 20,
             "sort": [{"_score": {"order": "desc"}}],
             "size": max_results,
             "_source": ["uuid", "name", "category", "subcategory"]
         }
-        
-        response = self.es.search(index=self.index_name, body=search_body)
+            
+        response = self.es.search(index=self.index_name, body=final_query)
         
         hits = response['hits']['hits']
         places = [
