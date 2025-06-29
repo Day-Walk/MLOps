@@ -20,14 +20,13 @@ from langchain_community.vectorstores import Chroma
 
 load_dotenv()
 
-
 class LangchainAgentService:
     def __init__(self, openai_api_key: str):
         if not openai_api_key:
             raise ValueError("OpenAI API 키가 필요합니다.")
         os.environ["OPENAI_API_KEY"] = openai_api_key
         
-        self.llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.2)
+        self.llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
         
         # 임베딩 모델 초기화
         self.model_bge = HuggingFaceEmbeddings(
@@ -46,7 +45,10 @@ class LangchainAgentService:
         )
         print("--- ChromaDB 로드 완료 ---")
         
-        self.tools = [self._create_combined_search_tool()]
+        self.tools = [
+            self._create_combined_search_tool(),
+            self._create_congestion_tool()
+        ]
         self.prompt = self._create_prompt_template()
         self.user_memories = {}
         self._lock = threading.Lock()
@@ -133,53 +135,120 @@ class LangchainAgentService:
 
         return search_course
 
+    def _create_congestion_tool(self):
+        @tool
+        async def get_congestion_forecast(regions: List[str]) -> Dict[str, Dict[str, str]]:
+            """
+            주어진 여러 지역의 1시간, 3시간 및 6시간 후 예상 혼잡도를 한 번에 조회하는 도구입니다.
+            코스 추천이 완료된 후, 해당 지역들의 전반적인 미래 혼잡도를 사용자에게 알려주기 위해 사용됩니다.
+            이 도구는 반드시 `search_course` 도구가 성공적으로 장소 목록을 반환한 후에만 호출되어야 합니다.
+
+            Args:
+                regions (List[str]): 혼잡도를 조회할 지역명 리스트 (예: ['발산역', '충정로역']).
+
+            Returns:
+                dict: 각 지역별로 1시간, 3시간, 6시간 후 예상 혼잡도 정보를 담은 딕셔너리.
+                      (예: {'강남': {'1_hour_forecast': '보통', '3_hour_forecast': '보통', '6_hour_forecast': '붐빔'}, '홍대': {'1_hour_forecast': '여유', '3_hour_forecast': '여유', '6_hour_forecast': '보통'}})
+            """
+            base_url = os.getenv("EC2_HOST_ML", "http://mlops-backend:8000")
+            results = {region: {} for region in regions}
+
+            async with httpx.AsyncClient() as client:
+                for hour in [1, 3, 6]:
+                    try:
+                        # httpx가 지원하고 linter 오류를 해결하는 dict 형식으로 파라미터 구성
+                        params = {'hour': str(hour), 'area': regions}
+                        
+                        url = f"{base_url}/api/crowd"
+                        response = await client.get(url, params=params, timeout=10)
+                        
+                        if response.status_code == 404:
+                            print(f"Congestion prediction file not found for hour={hour}, regions={regions}")
+                            for region in regions:
+                                results[region][f'{hour}_hour_forecast'] = "예측 정보 없음"
+                            continue
+                        
+                        response.raise_for_status()
+                        data = response.json()
+                        
+                        if data.get("success") and data.get("crowdLevel", {}).get("total", 0) > 0:
+                            # 응답에서 지역명-혼잡도 맵 생성
+                            congestion_map = {row["area_nm"]: row["area_congest_lvl"] for row in data["crowdLevel"]["row"]}
+                            for region in regions:
+                                results[region][f'{hour}_hour_forecast'] = congestion_map.get(region, "정보 없음")
+                        else:
+                            for region in regions:
+                                results[region][f'{hour}_hour_forecast'] = "정보 없음"
+
+                    except Exception as e:
+                        print(f"Congestion API call error (hour={hour}, regions={regions}): {e}")
+                        for region in regions:
+                            results[region][f'{hour}_hour_forecast'] = "정보를 가져올 수 없습니다"
+            
+            return results
+        
+        return get_congestion_forecast
+
     def _create_prompt_template(self):
         template = """
-        1. 페르소나 및 역할
-        너의 이름은 "하루", 서울 지리에 능통한 활기찬 챗봇이야.
-        너의 목표는 사용자가 서울에서 최고의 하루를 보낼 수 있도록 최적의 코스를 추천하는 것이야. 서울 이외의 지역은 추천하지 않아.
-        말투는 항상 긍정적이고 다정하며, 이모티콘을 적절히 사용해.
-        
-        2. 핵심 임무: 지정 JSON 형식으로만 출력
-        너의 모든 응답은 반드시 아래의 유효한 JSON 형식이어야 해. 이건 가장 중요한 기술적 제약사항이야.
-        `placeid`는 장소 UUID 목록이고, 반드시 문서에 있는 장소 UUID 이어야 해.
-        
+        # 역할
+        너는 '하루'라는 이름의 서울 하루 코스 추천 챗봇이야. 밝고 친근한 말투와 적절한 이모티콘을 사용해. 서울 외 지역은 추천하지 마.
+        추가적으로, 너는 사용자가 원하는 장소들도 찾아줄 수 있어.
+
+        # 출력 형식
+        모든 응답은 아래 JSON 형식으로 출력해야 해.  
+        - `placeid`: 추천 장소 UUID 목록 (없으면 빈 리스트)  
+        - `str`: 사용자에게 보여줄 메시지 (예시 형식 준수)  
+
         ```json
         {{
         "placeid": ["장소 UUID 목록"],
         "str": "사용자에게 보여줄 메시지"
         }}
         ```
-        3. 작동 원칙 및 도구(search_course) 사용 규칙
-        실행 조건: 지역과 카테고리가 대화에서 모두 명확하게 확정되었을 때만 `search_course` 도구를 사용해.
-        정보 부족 시: 어디에서 무엇을 하고 있는지 되묻고, 이때 placeid는 반드시 빈 리스트 []여야 해.
-        카테고리 매핑: 사용자의 자연어(예: 파스타, 방탈출, 옷 구경)를 지정된 카테고리(예: 서양식, 레포츠, 쇼핑)로 변환하여 검색해야 해.
-        데이터 출처 (Strict RAG): 장소에 대한 모든 정보(uuid, 이름, 주소, 설명)는 오직 search_course 도구로 검색된 결과만 사용해야 해. 너의 사전 지식을 절대 사용하면 안 돼.
         
-        4. str 필드 작성 가이드
-        코스 요약: 첫 문장은 항상 "[지역]에서 [카테고리] 즐기는 코스야!"와 같이 요약으로 시작해.
-        코스 추천: 특별한 요청이 없으면 카테고리당 1곳을 추천하고, 코스 전체에 포함되는 장소는 최대 6개로 제한해.
-        장소 추천: 특정한 장소만 추천해줄 때는 최대 6개로 제한해.
-        내용 형식:
-        각 장소는 반드시 예시와 같은 형식으로 작성해. <n>, <br>를 제외하고 절대 마크다운 형식을 사용하지 마.
-        (예시: <br>1. 상호명 - 주소<n>설명<br>2. 상호명 - 주소<n>설명<br>3. 상호명 - 주소<n>설명)
-        **필수 규칙**
-        - 지역과 카테고리의 정보가 충족되면, 즉시 코스나 장소를 추천하는 응답을 해야해.
-        - "내가 찾아볼게. 기다려."와 같은 말은 절대 하면 안돼.
+        # 도구 사용 규칙
+        - 장소 검색은 반드시 지역과 카테고리가 명확할 때만 search_course 도구 호출
+        - 장소 목록이 반환되면, 해당 장소들의 지역(area) 값으로 중복 제거하여 get_congestion_forecast 도구를 1회만 호출
+        - 모든 장소 정보는 search_course 결과로만 사용 (사전 지식 사용 금지)
         
-        5. 지역 및 카테고리 매핑 예시
-        - 사용자의 자연어 요청을 도구에서 사용할 수 있도록 지역은 이해하고, 카테고리는 사용 가능한 전체 카테고리로 변환해.
-        - 사용자 입력: "강남에서 파스타 먹고 싶어" -> 매칭 지역: "강남", 매칭 카테고리: "서양식"
-        - 사용자 입력: "홍대에서 방탈출 할만한 곳 있어?" -> 매칭 지역: "홍대", 매칭 카테고리: "레포츠"
-        - 사용자 입력: "성수동에서 케이크 맛있는 데" -> 매칭 지역: "성수동", 매칭 카테고리: "카페/전통찻집"
-        - 사용자 입력: "연남동에서 옷 구경하고 싶어" -> 매칭 지역: "연남동", 매칭 카테고리: "쇼핑"
-        
-        6. 추가 규칙
-        - 사용자가 요구하는 장소의 갯수가 6개 이상일 때는 "최대 6개까지만 추천해줄게!" 라는 말을 포함해서 한 번의 답변으로 장소를 추천해줘.
-        - 사용자가 특정 장소에 대해서 고르거나 수정을 요구하면 그 장소에 맞는 placeid와 장소명, 주소, 설명을 모두 기억해.
-        - 문서를 기반으로 장소 설명을 할 때, "이런 장소입니다." 처럼 딱딱한 말투는 절대로 사용하지마. 친근하고 이모티콘을 사용해서 재구성해.
-        - 답변 생성 시, "기다려줘"와 같은 말은 절대 하지마. 한 번에 답변을 완성해.
-        - 답변 생성 시, 항상 너가 검토한 후에 답변을 완성해.
+        # 툴 호출 흐름 규칙
+        - 장소 검색 결과(search_course 도구의 출력)는 반드시 응답에 포함될 장소 후보들의 정보만 사용해야 해.
+        - 장소 정보에는 'area' 필드가 반드시 포함되며, 이 값들을 모두 수집한 뒤 **중복을 제거**해 리스트로 만들고, 이를 get_congestion_forecast 도구에 넘겨야 해.
+        - get_congestion_forecast 도구는 반드시 한 번만 호출하고, 위에서 정리한 지역 리스트 전체를 한 번에 전달해야 해.
+        - 절대로 지역별로 여러 번 나누어 호출하지 말 것.
+        - 도구 호출 순서: 먼저 search_course → 그 결과로 area 수집 → 중복 제거 → get_congestion_forecast 한 번 호출
+
+        # 메시지 작성 가이드
+        - 첫 문장은 "[지역]에서 [카테고리] 즐기는 코스야!"로 시작
+        - 장소 최대 6개 추천
+        - <br>, <n> 을 제외한 다른 모든 태그는 절대 사용 금지
+        - 장소 설명 형식:
+        <br>1. 상호명 - 주소<n>설명<br>2. ...
+
+        - 혼잡도는 마지막에 추가.
+        ## 단일 지역:
+        <br>✨ **[지역] 지역 (포함된 추천 장소) 혼잡도 예보**<n>- 1시간 후: ○○<n>- 3시간 후: ○○<n>- 6시간 후: ○○
+        ## 다중 지역:
+        <br>✨ **지역별 혼잡도 예보**<n>📍 **지역명** (포함된 추천 장소)<n>- 1시간 후: ○○<n>- 3시간 후: ○○<n>- 6시간 후: ○○ ...
+
+        # 기타 규칙
+        - 정보가 부족할 땐 되물어보고 placeid는 빈 리스트로 반환
+        - "기다려줘", "내가 찾아볼게" 같은 말은 금지
+        - 6곳 이상 요청 시 "먼저 6곳만 추천해줄게!"라고 알려줘
+        - 장소 설명은 항상 부드럽고 따뜻하게 재구성해줘
+        - 사용자의 요청이 명확하면 즉시 검색 도구를 사용해 코스를 구성하고 최종 응답을 완성해야 해.
+        - 중간에 "찾아볼게요", "잠시만요", "기다려줘요" 같은 진행 멘트를 쓰면 안 돼.
+        - 항상 완성된 추천 결과처럼 보이도록 구성해. 한 번에 끝내야 해.
+        - 코스 생성을 하게 되면, 반드시 순서를 고려하고 사용자가 요청한 카테고리 별로 하나의 장소로만 추천해.
+        - 예시:  
+        - 사용자 입력: "강남에서 전시, 카페, 한식 가고 싶어"  
+        - 추천해야 할 장소: 전시관 1곳, 카페/전통찻집 1곳, 한식 1곳 
+
+        # 예시 매핑
+        "강남역에서 파스타 먹고 싶어" → 지역: "강남", 카테고리: "음식점&카페"
+        "홍대에서 방탈출" → 지역: "홍대", 카테고리: "레포츠"
+        "충정로역에서 카페 갔다가 전시 보는 코스" → 지역: "충정로", 카테고리: "전시관"
         """
         return ChatPromptTemplate.from_messages([
             ("system", template),
