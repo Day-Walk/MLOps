@@ -1,6 +1,0 @@
-outs:
-- md5: ff31f7bf564469a20b7c37e36517af7d.dir
-  size: 3926272
-  nfiles: 380
-  hash: md5
-  path: crowd_prediction
