@@ -6,11 +6,6 @@ import os
 
 router = APIRouter(prefix="/api", tags=["crowdness"])
 
-# .env에서 PRED_PATH를 찾지 못할 경우를 대비한 기본 경로 설정
-PRED_PATH = os.getenv("PRED_PATH")
-if not PRED_PATH:
-    print("PRED_PATH is not set")
-
 @router.get("/crowd", response_model=CrowdResponse)
 def get_crowd_prediction(hour: int, area: str = "all"):
     """
@@ -19,18 +14,22 @@ def get_crowd_prediction(hour: int, area: str = "all"):
     - **area**: 조회할 지역 (all, 서울, 경기, 인천, 강원, 충청, 전라, 경상, 제주 중 하나)
     """
     try:
-        # 1. 대상 파일명 생성
+        # 1. 대상 S3 경로 생성
         target_timestamp = (datetime.now()).strftime("%Y%m%d%H")
         filename = f"congestion_predictions_{target_timestamp}_{hour}.csv"
-        file_path = os.path.join(PRED_PATH, filename)
+
+        s3_bucket_name = os.getenv("S3_BUCKET_NAME")
+        if not s3_bucket_name:
+            raise ValueError("S3_BUCKET_NAME environment variable is not set.")
         
-        print(f"Attempting to read: {file_path}")
+        s3_directory = os.getenv("S3_DIRECTORY_PATH", "")
+        s3_key = os.path.join(s3_directory, filename).replace("\\", "/") # S3는 /를 사용
+        s3_path = f"s3://{s3_bucket_name}/{s3_key}"
+        
+        print(f"Attempting to read from S3: {s3_path}")
 
-        # 2. 파일 존재 확인 및 데이터 로드
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail=f"Prediction file not found for T+{hour}h. It may not have been generated yet.")
-
-        df = pd.read_csv(file_path)
+        # 2. S3에서 데이터 로드
+        df = pd.read_csv(s3_path)
 
         # 3. 'area' 파라미터에 따른 데이터 필터링
         if area != "all":
@@ -60,5 +59,7 @@ def get_crowd_prediction(hour: int, area: str = "all"):
             message=f"조회 성공!",
             crowdLevel=crowd_level
         )
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Prediction file not found: {s3_path}. It may not have been generated yet.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")

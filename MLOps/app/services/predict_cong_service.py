@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import schedule
 import time
+import boto3
 
 # --- 경로 설정 및 초기화 ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -33,9 +34,6 @@ MODEL_PATHS = {
 }
 # 파일명 접미사 매핑
 MODEL_FILE_SUFFIX = {"1-hour": 1, "2-hour": 2, "3-hour": 3, "6-hour": 6, "12-hour": 12}
-
-
-PRED_PATH = os.getenv("PRED_PATH")
 
 # --- 전역 객체 및 모델 로드 ---
 preprocessor = CongestionDataPreprocessor()
@@ -112,14 +110,6 @@ def predict_and_save_all_locations():
         print("No predictions were made.")
         return
 
-    # PRED_PATH가 설정되지 않았을 경우에 대한 예외 처리
-    if not PRED_PATH:
-        print("❌ PRED_PATH environment variable is not set. Cannot save files.")
-        return
-
-    # 저장 경로가 존재하는지 확인하고, 없으면 생성합니다.
-    os.makedirs(PRED_PATH, exist_ok=True)
-
     # 타임스탬프 (현재 시간 + 1시간)
     timestamp = (datetime.now() + timedelta(hours=1)).strftime("%Y%m%d%H")
 
@@ -139,10 +129,25 @@ def predict_and_save_all_locations():
 
         file_suffix = MODEL_FILE_SUFFIX.get(name)
         output_filename = f"congestion_predictions_{timestamp}_{file_suffix}.csv"
-        output_path = os.path.join(PRED_PATH, output_filename)
         
-        final_df.to_csv(output_path, index=False, encoding='utf-8-sig')
-        print(f"✅ Predictions for '{name}' saved to: {output_path}")
+        # --- S3에 바로 저장 ---
+        s3_bucket_name = os.getenv("S3_BUCKET_NAME")
+        s3_directory = os.getenv("S3_DIRECTORY_PATH", "") # S3 내 디렉토리 경로 (옵션)
+
+        if s3_bucket_name:
+            try:
+                # S3 키는 디렉토리 경로와 파일명을 조합하여 만듭니다.
+                s3_key = os.path.join(s3_directory, output_filename)
+                s3_path = f"s3://{s3_bucket_name}/{s3_key}"
+                
+                # EC2 인스턴스의 IAM 역할을 사용한 인증을 통해 S3에 직접 저장합니다.
+                final_df.to_csv(s3_path, index=False, encoding='utf-8-sig')
+                print(f"✅ Predictions for '{name}' successfully saved to: {s3_path}")
+
+            except Exception as e:
+                print(f"❌ S3 save failed: {e}")
+        else:
+            print("⚠️  S3_BUCKET_NAME environment variable not set. Skipping S3 save.")
 
 if __name__ == "__main__":
     print("Congestion prediction service started.")
