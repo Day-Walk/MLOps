@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from typing import List
 from app.schema.crowd_schema import CrowdResponse, CrowdLevel, CrowdInfo
 from datetime import datetime, timedelta
 import pandas as pd
@@ -7,11 +8,11 @@ import os
 router = APIRouter(prefix="/api", tags=["crowdness"])
 
 @router.get("/crowd", response_model=CrowdResponse)
-def get_crowd_prediction(hour: int, area: str = "all"):
+def get_crowd_prediction(hour: int, area: List[str] = Query(["all"])):
     """
     ## 시간대별 혼잡도 예측 결과 조회 API
     - **hour**: 조회할 예측 시간 (1, 2, 3, 6, 12 중 하나)
-    - **area**: 조회할 지역 (all, 서울, 경기, 인천, 강원, 충청, 전라, 경상, 제주 중 하나)
+    - **area**: 조회할 지역 리스트. 파라미터를 여러 번 사용하여 다수 지역 조회 가능 (예: `?area=홍대&area=강남`). 기본값은 'all'.
     """
     try:
         # 1. 대상 S3 경로 생성
@@ -32,10 +33,10 @@ def get_crowd_prediction(hour: int, area: str = "all"):
         df = pd.read_csv(s3_path)
 
         # 3. 'area' 파라미터에 따른 데이터 필터링
-        if area != "all":
-            df = df[df['AREA_NM'] == area]
+        if "all" not in area:
+            df = df[df['AREA_NM'].isin(area)]
             if df.empty:
-                raise HTTPException(status_code=404, detail=f"No data found for area: {area}")
+                raise HTTPException(status_code=404, detail=f"No data found for areas: {', '.join(area)}")
 
         # 4. 응답 데이터 형식으로 변환
         crowd_info_list = []
