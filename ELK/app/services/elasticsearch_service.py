@@ -453,37 +453,19 @@ class ElasticsearchService:
 
     def get_most_clicked_places_today(self) -> List[Dict[str, Any]]:
         """
-        오늘/어제 새벽 5시부터 현재까지 가장 많이 클릭된 장소 4개의 UUID와 클릭 수를 반환합니다.
+        호출 시점 기준 24시간 이내에 가장 많이 클릭된 장소 4개의 UUID와 클릭 수를 반환합니다.
         """
         try:
-            # KST 시간대 정의
-            kst = timezone(timedelta(hours=9))
-            
-            # 현재 KST 시간
-            now_kst = datetime.now(kst)
-            
-            # 오늘 새벽 5시 KST
-            today_5am_kst = now_kst.replace(hour=5, minute=0, second=0, microsecond=0)
-
-            # 만약 현재 시간이 오늘 새벽 5시 이전이라면, 시작 시간은 어제 새벽 5시로 설정
-            if now_kst < today_5am_kst:
-                start_time_kst = today_5am_kst - timedelta(days=1)
-            else:  # 그렇지 않다면, 시작 시간은 오늘 새벽 5시
-                start_time_kst = today_5am_kst
+            now = datetime.now(timezone(timedelta(hours=9)))
+            start_time = now - timedelta(hours=24)
 
             query = {
                 "query": {
-                    "bool": {
-                        "filter": [
-                            {
-                                "range": {
-                                    "timestamp": {
-                                        "gte": start_time_kst.isoformat(),
-                                        "lte": now_kst.isoformat()
-                                    }
-                                }
-                            }
-                        ]
+                    "range": {
+                        "timestamp": {
+                            "gte": start_time.isoformat(),
+                            "lte": now.isoformat()
+                        }
                     }
                 },
                 "size": 0,
