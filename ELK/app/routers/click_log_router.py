@@ -5,7 +5,7 @@ from app.schema.log_schemas import ClickLogRequest, ClickLogResponse
 from app.schema.search_schemas import MostClickedPlace
 from app.services.elasticsearch_service import ElasticsearchService
 
-router = APIRouter(prefix="/api", tags=["클릭 로그"])
+router = APIRouter(prefix="/api", tags=["click-log"])
 
 elasticsearch_service = ElasticsearchService()
 

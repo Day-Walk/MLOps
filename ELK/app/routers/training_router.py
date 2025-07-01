@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.services.elasticsearch_service import ElasticsearchService
 
-router = APIRouter(prefix="/api/training-data", tags=["학습 데이터"])
+router = APIRouter(prefix="/api/training-data", tags=["training-data"])
 
 elasticsearch_service = ElasticsearchService()
 

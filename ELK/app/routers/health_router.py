@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from app.services.elasticsearch_service import ElasticsearchService
 
-router = APIRouter(tags=["헬스체크"])
+router = APIRouter(tags=["health-check"])
 
 elasticsearch_service = ElasticsearchService()
 

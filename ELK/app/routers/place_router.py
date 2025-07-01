@@ -4,7 +4,7 @@ from typing import List
 from app.schema.search_schemas import SearchResponse, LLMToolResponse, Place
 from app.services.elasticsearch_service import ElasticsearchService
 
-router = APIRouter(prefix="/api/place", tags=["장소 검색"])
+router = APIRouter(prefix="/api/place", tags=["place-search"])
 
 elasticsearch_service = ElasticsearchService()
 

@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from app.schema.log_schemas import LogRequest, LogResponse
 from app.services.elasticsearch_service import ElasticsearchService
 
-router = APIRouter(prefix="/api/chatbot", tags=["챗봇"])
+router = APIRouter(prefix="/api/chatbot", tags=["chatbot"])
 
 elasticsearch_service = ElasticsearchService()
 
