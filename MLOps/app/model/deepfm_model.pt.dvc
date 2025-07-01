@@ -1,5 +1,5 @@
 outs:
-- md5: 1658f17df5eee965e723ab882d7dca4f
-  size: 381873
+- md5: a658b8e3b244207cd107dc9dfe2e5f8d
+  size: 388145
   hash: md5
   path: deepfm_model.pt

@@ -56,7 +56,7 @@ class DatabaseService:
 
     def user_table_query(self):
         query = """
-        SELECT * FROM user LIMIT 10;
+        SELECT HEX(id) as id, name, gender, age, create_at, update_at FROM user LIMIT 10;
         """
         return self.execute_query(query)
 
@@ -84,7 +84,7 @@ class DatabaseService:
         GROUP BY
             u.id, c.id;
         """
-        user_id_hex = user_id.replace('-', '')
+        user_id_hex = user_id.replace('-', '').upper()
         df = self.execute_query(query, params={'user_id_hex': user_id_hex})
         if df is not None:
             df = df.rename(columns={
@@ -107,7 +107,7 @@ class DatabaseService:
 
         # IN 절에 대한 플레이스홀더를 동적으로 생성
         placeholders = ', '.join([f':id_{i}' for i in range(len(user_ids))])
-        params = {f'id_{i}': user_id for i, user_id in enumerate(user_ids)}
+        params = {f'id_{i}': user_id.replace('-','').upper() for i, user_id in enumerate(user_ids)}
 
         query = f"""
         SELECT
@@ -142,7 +142,7 @@ class DatabaseService:
 
         # IN 절에 대한 플레이스홀더를 동적으로 생성
         placeholders = ', '.join([f':id_{i}' for i in range(len(place_ids))])
-        params = {f'id_{i}': place_id for i, place_id in enumerate(place_ids)}
+        params = {f'id_{i}': place_id.replace('-','').upper() for i, place_id in enumerate(place_ids)}
 
         query = f"""
         SELECT
@@ -159,3 +159,9 @@ class DatabaseService:
         WHERE HEX(p.id) IN ({placeholders})
         """
         return self.execute_query(query, params=params)
+    
+if __name__ == "__main__":
+    db_service = DatabaseService()
+    user_id = '6c200475-29ce-4410-a763-a1dce968b7d1'
+    user_info = db_service.get_user_info_by_user_id(user_id)
+    print(user_info)

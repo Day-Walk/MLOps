@@ -281,28 +281,8 @@ class DeepFMModdelTrain:
         return model.predict(model_input)
     
 if __name__ == "__main__":
+    # 모델 학습 및 저장
     deepfm_train = DeepFMModdelTrain()
     deepfm_train.load_data()
-    
-    # 전처리가 성공한 경우에만 학습 진행
-    if deepfm_train.preprocess():
-        model = deepfm_train.train()
-        
-        if model:
-            # 예시 데이터
-            input_data = {
-                "userid": ["0x06fa1ba7a7e44621a2338e6093e53341", "0x6d132cda535848e295b8e489486ea841", "0x0fa0a9c4a283451181b77d91e3229c91"],
-                "name": ["딩딩이", "댕댕이 언니", "에구궁"],
-                "age": [30, 60, 50],
-                "gender": [1, 1, 0],
-                "place_id": ["0xeb37b72b1fa54dc6a3867517ac2df6ef", "0x0528fbb073104d51974112a71d72b4e4", "0x1226fc5501194d2eba00383748045c20"],
-                "place_name": ["롯데월드 쇼핑몰", "청아라 생선구이", "시골보쌈"],
-                "category": ["쇼핑", "음식점&카페", "음식점&카페"],
-                "subcategory": ["전문매장/상가", "한식", "한식"],
-                "like_list": ['["태그1", "태그2"]', '["태그3"]', '[]'] 
-            }
-            # predict 메서드를 사용하기 위한 별도의 인스턴스 생성
-            # 학습 시 사용된 인코더 등을 그대로 사용하기 위함
-            predictor = DeepFMModdelTrain() 
-            prediction = predictor.predict(input_data)
-            print("예측 결과:", prediction)
+    deepfm_train.preprocess()
+    deepfm_train.train()
