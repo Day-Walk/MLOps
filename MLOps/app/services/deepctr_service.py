@@ -23,7 +23,7 @@ class DeepCTRService:
         user_info_df = self.db_service.get_user_info_by_user_id(userid)
         
         # 장소 정보
-        places_list = await self.elk_client.search_places(query=query, max_results=23)
+        places_list = await self.elk_client.search_places(query=query, user_id=userid, max_results=23)
         if not places_list:
             # 검색 결과가 없으면 빈 리스트 반환
             return [], []

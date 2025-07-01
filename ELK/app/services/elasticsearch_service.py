@@ -78,7 +78,7 @@ class ElasticsearchService:
         except:
             return False
 
-    def search_places(self, query: str, max_results: int = 23, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def search_places(self, query: str, user_id: str, max_results: int = 23) -> List[Dict[str, Any]]:
         """장소 검색"""
         
         # '맛집' 키워드가 포함된 경우, 쿼리 내에서 '맛집'을 '음식점&카페'로 변환
@@ -205,15 +205,14 @@ class ElasticsearchService:
             for hit in hits
         ]
         
-        if user_id:
-            place_ids = [place['uuid'] for place in places]
-            log_data = {
-                "userId": user_id,
-                "query": query,
-                "placeIds": place_ids,
-                "timestamp": datetime.now(timezone(timedelta(hours=9))).isoformat()
-            }
-            self.insert_search_log(log_data)
+        place_ids = [place['uuid'] for place in places]
+        log_data = {
+            "userId": user_id,
+            "query": query,
+            "placeIds": place_ids,
+            "timestamp": datetime.now(timezone(timedelta(hours=9))).isoformat()
+        }
+        self.insert_search_log(log_data)
             
         return places
 
