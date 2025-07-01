@@ -1,0 +1,5 @@
+outs:
+- md5: cba4f5305c768c18480dd028d6bbed49
+  size: 6026371
+  hash: md5
+  path: place_json_preprocessing.json
