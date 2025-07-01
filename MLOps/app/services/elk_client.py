@@ -8,13 +8,14 @@ class ELKClient:
     def __init__(self, elk_url: str = "http://15.164.50.188:9201"):
         self.elk_url = elk_url
     
-    async def search_places(self, query: str, max_results: int = 23) -> List[Dict[str, Any]]:
+    async def search_places(self, query: str, user_id: str, max_results: int = 23) -> List[Dict[str, Any]]:
         """ELK 서버에서 장소 검색"""
         try:
             response = requests.get(
                 f"{self.elk_url}/api/place/search",
                 params={
                     "query": query,
+                    "user_id": user_id,
                     "max_results": max_results
                 }
             )
