@@ -6,6 +6,7 @@ from app.services.db_connection import DatabaseService
 import pandas as pd
 import os
 import torch
+import json
 
 class DeepCTRService:
     """DeepCTR 모델 서비스"""
@@ -35,9 +36,36 @@ class DeepCTRService:
         
         # 사용자 정보를 DataFrame의 모든 행에 추가
         if not user_info_df.empty:
-            user_info = user_info_df.iloc[0].to_dict()
+            # 기본 정보는 첫 행에서 추출 (userid, name, gender, age)
+            base_cols = ['userid', 'name', 'gender', 'age']
+            user_info = user_info_df.iloc[0][base_cols].to_dict()
+
+            # like_list 가 누적될 리스트
+            combined_likes: list[str] = []
+
+            for _, row in user_info_df.iterrows():
+                category = row.get('category_name', '')
+                tags_raw = row.get('like_list', '[]')
+
+                # like_list 컬럼이 문자열(JSON)일 수도 있고 list 객체일 수도 있음
+                if isinstance(tags_raw, str):
+                    try:
+                        tags_list = json.loads(tags_raw)
+                    except json.JSONDecodeError:
+                        tags_list = []
+                else:
+                    tags_list = tags_raw
+
+                if tags_list:
+                    for tag in tags_list:
+                        combined_likes.append(f"{category}_{tag}")
+
+            # userid, name, gender, age 컬럼 채우기
             for col, val in user_info.items():
                 places_df[col] = val
+
+            # like_list 는 JSON 문자열로 저장 (모델 입력 형식에 맞게 조정 가능)
+            places_df['like_list'] = json.dumps(combined_likes, ensure_ascii=False)
         else:
             # 사용자가 존재하지 않을 경우, 기본값으로 채움
             print("사용자가 존재하지 않습니다.")
@@ -61,11 +89,20 @@ class DeepCTRService:
         df_to_sort = pd.DataFrame(preserved_df)
         sorted_df = df_to_sort.sort_values(by='ctr', ascending=False)
         
-        # 'place_id'를 'id'로 다시 변경
-        sorted_df = sorted_df.rename(columns={'place_id': 'id'})
+        # CTR 0.3 이상인 장소만 필터링
+        recommended_df = sorted_df[sorted_df['ctr'] >= 0.3].copy()
+        normal_df = sorted_df[sorted_df['ctr'] < 0.3].copy()
+
+        # 'place_id'를 'id'로 변경
+        if not recommended_df.empty:
+            recommended_df['id'] = recommended_df['place_id']
+            recommended_df = recommended_df.drop(columns=['place_id'])
+        if not normal_df.empty:
+            normal_df['id'] = normal_df['place_id']
+            normal_df = normal_df.drop(columns=['place_id'])
         
         # 상위 3개 장소 반환, 나머지도 반환
-        top_places = sorted_df.head(3).to_dict(orient='records')
-        other_places = sorted_df.iloc[3:].to_dict(orient='records')
+        top_places = recommended_df.to_dict(orient='records')
+        other_places = normal_df.to_dict(orient='records')
         return top_places, other_places
     
